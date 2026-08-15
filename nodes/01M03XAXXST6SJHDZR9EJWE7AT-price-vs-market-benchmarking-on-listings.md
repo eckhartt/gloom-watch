@@ -3,6 +3,7 @@ id: 01M03XAXXST6SJHDZR9EJWE7AT
 type: decision
 title: Price-vs-market benchmarking on listings
 status: moot
+archived: true
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 meta:
   scope: out
