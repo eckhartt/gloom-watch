@@ -4,6 +4,9 @@ type: decision
 title: What is in the masterset, and what counts as one card row?
 status: proposed
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+edges:
+  - to: 01M03XA7TY3EEWANSAG7KZSS3Y
+    type: blocks
 meta:
   ticket: grilling
   hitl: yes
