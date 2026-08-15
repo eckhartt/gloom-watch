@@ -1,0 +1,18 @@
+{
+  "view": {
+    "mode": "nested",
+    "direction": "RIGHT"
+  },
+  "split": {
+    "width": 416
+  },
+  "activity": {
+    "open": false
+  },
+  "terminal": {
+    "width": 600
+  },
+  "rail": {
+    "mode": "collapsed"
+  }
+}
