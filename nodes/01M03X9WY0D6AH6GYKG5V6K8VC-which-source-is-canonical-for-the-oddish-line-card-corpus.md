@@ -4,6 +4,9 @@ type: decision
 title: Which source is canonical for the Oddish-line card corpus?
 status: proposed
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+edges:
+  - to: 01M03XA78KZN54BHSM6G9ZBPTV
+    type: blocks
 meta:
   ticket: research
   hitl: no
