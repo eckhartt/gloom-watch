@@ -4,6 +4,9 @@ type: decision
 title: "Lock the stack: runtime, storage, frontend, PWA build"
 status: proposed
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+edges:
+  - to: 01M03XAAMK96EN2TFBHEYGABXQ
+    type: blocks
 meta:
   ticket: grilling
   hitl: yes
