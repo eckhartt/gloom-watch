@@ -4,6 +4,9 @@ type: decision
 title: What is the current Bun + SQLite + PWA toolchain?
 status: proposed
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+edges:
+  - to: 01M03XA8CW3DB9JC43TCTEPR8X
+    type: blocks
 meta:
   ticket: research
   hitl: no
