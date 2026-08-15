@@ -2,7 +2,7 @@
 id: 01M03X9Y1F49S5XJFXWANWMA28
 type: decision
 title: What does iOS Web Push to an installed PWA actually require?
-status: proposed
+status: deciding
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M03XA8YSDR7SCNXBVZXM9MS1
