@@ -4,6 +4,9 @@ type: decision
 title: What does iOS Web Push to an installed PWA actually require?
 status: proposed
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+edges:
+  - to: 01M03XA8YSDR7SCNXBVZXM9MS1
+    type: blocks
 meta:
   ticket: research
   hitl: no
