@@ -7,6 +7,8 @@ parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M03XA78KZN54BHSM6G9ZBPTV
     type: blocks
+  - to: 01M03XA9GZ6ZRV3CBTF2F460EN
+    type: blocks
 meta:
   ticket: research
   hitl: no
