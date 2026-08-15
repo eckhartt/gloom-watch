@@ -9,6 +9,8 @@ edges:
     type: blocks
   - to: 01M03XA9GZ6ZRV3CBTF2F460EN
     type: blocks
+  - to: 01M03XAAMK96EN2TFBHEYGABXQ
+    type: blocks
 meta:
   ticket: grilling
   hitl: yes
