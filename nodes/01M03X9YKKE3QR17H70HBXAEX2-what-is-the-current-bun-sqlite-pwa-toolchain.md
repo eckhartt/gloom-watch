@@ -2,7 +2,7 @@
 id: 01M03X9YKKE3QR17H70HBXAEX2
 type: decision
 title: What is the current Bun + SQLite + PWA toolchain?
-status: proposed
+status: deciding
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M03XA8CW3DB9JC43TCTEPR8X
