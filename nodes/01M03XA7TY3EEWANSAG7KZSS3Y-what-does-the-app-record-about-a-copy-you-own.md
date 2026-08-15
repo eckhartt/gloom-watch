@@ -4,6 +4,9 @@ type: decision
 title: What does the app record about a copy you own?
 status: proposed
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+edges:
+  - to: 01M03XAA33X9BVPKF8BP747MZV
+    type: blocks
 meta:
   ticket: grilling
   hitl: yes
