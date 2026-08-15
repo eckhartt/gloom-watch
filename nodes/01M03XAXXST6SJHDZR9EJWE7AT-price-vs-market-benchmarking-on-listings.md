@@ -4,6 +4,9 @@ type: decision
 title: Price-vs-market benchmarking on listings
 status: proposed
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+meta:
+  scope: out
+  reason: past the destination — dropped from v1 by the owner; needs a second paid data source, a price history store and a currency model
 ---
 ## The question, as it was asked
 
