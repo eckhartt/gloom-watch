@@ -1,0 +1,170 @@
+# ork taxonomy v0 — behavioral contracts per node type.
+#
+# A type earns its place when something branches on it. Usually that is
+# behavior — which bindings it may carry, whether a session gets a worktree,
+# whether it freezes — but purpose alone is enough: 'bug' and 'feature' run
+# identical machinery and exist apart so that "does this change the product, or
+# restore it?" stays a question the graph can answer.
+#
+# Statuses have two layers. Each type declares its own status NAMES, in order,
+# and every name maps to one of four fixed CATEGORIES:
+#
+#   todo | active | done | dropped
+#
+# Code branches on the category; people read the name. So a decision is
+# 'proposed' where a feature is 'todo', a doc that is current is 'living'
+# rather than 'done', and "everything unfinished" is still one question across
+# all of them. The first name listed is where a new node of that type is born.
+#
+#   actionable: true        its todo-category nodes are takeable work — the
+#                           frontier is exactly the unblocked, unclaimed,
+#                           unarchived todo nodes of actionable types
+#   freezeAtTerminal: true  edits are refused once the status reaches done or
+#                           dropped; changing your mind is a new node plus a
+#                           supersedes edge
+edgeTypes:
+  - relates
+  - implements
+  - supersedes
+  - blocks
+
+types:
+  feature:
+    statuses:
+      - { name: todo,    category: todo }
+      - { name: active,  category: active }
+      - { name: done,    category: done }
+      - { name: dropped, category: dropped }
+    actionable: true
+    bindings: [pr, branch]
+    worktree: true
+    session:
+      prompt: feature.md
+      closeTemplate: close.md
+      permissionMode: acceptEdits
+    traversal:
+      implements: 0.8
+      relates: 0.5
+      blocks: 0.9
+    contextWeight: 0.7
+    chips: [claimed, ticket]
+
+  bug:
+    # Feature's machinery exactly. The distinction is the filing predicate —
+    # does this change the product, or restore behavior it was meant to have?
+    # Kept apart so the bug-to-feature ratio is a query rather than archaeology.
+    statuses:
+      - { name: todo,    category: todo }
+      - { name: active,  category: active }
+      - { name: done,    category: done }
+      - { name: dropped, category: dropped }
+    actionable: true
+    bindings: [pr, branch]
+    worktree: true
+    session:
+      prompt: feature.md
+      closeTemplate: close.md
+      permissionMode: acceptEdits
+    traversal:
+      implements: 0.8
+      relates: 0.5
+      blocks: 0.9
+    contextWeight: 0.7
+    chips: [claimed, ticket]
+
+  spike:
+    # Throwaway investigation code: a branch and a worktree, deliberately no PR
+    # binding. The output is knowledge written back into the node; the code is
+    # expected to be discarded.
+    statuses:
+      - { name: todo,    category: todo }
+      - { name: active,  category: active }
+      - { name: done,    category: done }
+      - { name: dropped, category: dropped }
+    actionable: true
+    bindings: [branch]
+    worktree: true
+    session:
+      prompt: spike.md
+      closeTemplate: close.md
+      permissionMode: acceptEdits
+    traversal:
+      relates: 0.7
+      implements: 0.5
+    contextWeight: 0.6
+    chips: [claimed, ticket]
+
+  doc:
+    # Document words, not work words. 'living' is a document that is current and
+    # stays editable — it ends by being superseded, never by being finished.
+    # 'filed' is a finished record. Both are done-category, so "everything
+    # unfinished" reads them correctly without knowing either name.
+    statuses:
+      - { name: planned, category: todo }
+      - { name: draft,   category: active }
+      - { name: living,  category: done }
+      - { name: filed,   category: done }
+      - { name: retired, category: dropped }
+    traversal:
+      relates: 0.6
+      supersedes: 0.4
+    contextWeight: 0.6
+
+  research:
+    # Read-only envelope, no worktree, bindings.pr invalid.
+    # Done means findings written back into the node body.
+    # Not actionable: findings are not a ticket somebody takes.
+    statuses:
+      - { name: todo,    category: todo }
+      - { name: active,  category: active }
+      - { name: done,    category: done }
+      - { name: dropped, category: dropped }
+    worktree: false
+    session:
+      prompt: research.md
+      closeTemplate: close.md
+      permissionMode: readOnly
+    traversal:
+      relates: 0.7
+    contextWeight: 0.9
+
+  session:
+    # App-generated close-out records; never human-authored. Born terminal: a
+    # record of something that already happened has no earlier state to be in,
+    # so 'closed' is the only status it can hold. Hidden from default listings
+    # everywhere — the canvas starts with the session filter engaged, ork ls
+    # leaves them out until asked — because a record accumulates one per
+    # session and drowns the plan it annotates. One click or one flag reveals.
+    statuses:
+      - { name: closed, category: done }
+    humanAuthored: false
+    hiddenByDefault: true
+    contextWeight: 0.4
+
+  group:
+    # Scope, not work. Not actionable: you take a group's children, never the
+    # group.
+    statuses:
+      - { name: todo,    category: todo }
+      - { name: active,  category: active }
+      - { name: done,    category: done }
+      - { name: dropped, category: dropped }
+    contextWeight: 0.2
+
+  decision:
+    # Ruling words. Freezes at both terminal categories — a ruled decision and a
+    # moot one are equally settled — so changing your mind is a new decision
+    # with a supersedes edge. Accepted decisions in lineage are mandatory
+    # context.
+    statuses:
+      - { name: proposed, category: todo }
+      - { name: deciding, category: active }
+      - { name: ruled,    category: done }
+      - { name: moot,     category: dropped }
+    actionable: true
+    freezeAtTerminal: true
+    mandatoryContext: true
+    contextWeight: 1.0
+    chips: [ticket, claimed, hitl]
+    traversal:
+      supersedes: 1.0
