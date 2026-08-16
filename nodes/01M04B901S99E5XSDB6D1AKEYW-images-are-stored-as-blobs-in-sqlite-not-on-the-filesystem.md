@@ -2,7 +2,7 @@
 id: 01M04B901S99E5XSDB6D1AKEYW
 type: decision
 title: Images are stored as BLOBs in SQLite, not on the filesystem
-status: proposed
+status: ruled
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M03XAAMK96EN2TFBHEYGABXQ
