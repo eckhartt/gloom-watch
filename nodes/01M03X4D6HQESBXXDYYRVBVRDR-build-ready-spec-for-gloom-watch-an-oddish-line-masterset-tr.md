@@ -64,20 +64,11 @@ These are starting points for the data-source research, not endorsements:
 
 ## Not yet specified
 
-- **The shape of the PWA itself.** Browse-by-set vs browse-by-variant, how
-  masterset completion progress is shown, whether the listing feed is a separate
-  view or folded into the card pages. Cannot be phrased sharply until variant
-  granularity and the collection model are settled — the UI is a view over a
-  schema that does not exist yet.
-- **How the phone authenticates to the home server.** Hangs on the hosting and
-  ingress decision: a Tailscale-only origin and a public Cloudflare Tunnel imply
-  completely different answers, and one of them may need no auth at all.
-- **Offline *writes*.** Reading offline is settled — the shell is precached,
-  images cache CacheFirst, and a bulk warm exists. What is not settled is what
-  happens to a *write* made with no connection: marking a card owned, confirming
-  a match, editing a copy. The shell loads from cache even when the tailnet is
-  down, so the app is reachable while the API is not — which is exactly the
-  situation that needs an answer. Queue and replay, or refuse and tell the user?
+- **How the phone authenticates to the home server.** Much narrower now that
+  hosting is settled: the origin is tailnet-only, so **the tailnet is the
+  perimeter**, and the honest answer may be "no application auth at all". What
+  remains open is whether that is acceptable, and whether anything — the confirm
+  queue, manual variant entry, export — deserves a second factor regardless.
 - **Marketplaces beyond eBay.** A masterset of the Oddish line is full of
   Japanese-only prints, which trade heavily on Yahoo Japan Auctions and Mercari
   JP. This looked essential when the map was charted; the eBay research has since
