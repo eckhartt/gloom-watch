@@ -87,9 +87,20 @@ loads it explicitly because cron does not inherit systemd's `EnvironmentFile`. T
 reads it as root before dropping privileges, so the only new reader is the same account running
 the same application. Verified on the box: `gloom` can read it, `nobody` cannot.
 
-## Still unproven
+## Commissioning checklist step 8 — confirmed, and it was the one that mattered
 
-**The Tailscale-off push has not been run.** Commissioning checklist step 8 — turn Tailscale off
-on the phone, send a push, confirm the banner still arrives — remains **inference, not fact**.
-It is the last untested assumption in the hosting design, and unlike the others, getting it
-wrong would change the design rather than inconvenience it.
+**Tailscale off on the phone, push sent, banner arrived.** `201 accepted`, subscription not
+retired, notification displayed on a handset with no route to the origin.
+
+The spec carried this as *"well-reasoned inference from protocol behaviour, not a confirmed
+fact"* — no first-hand report could be found of an iOS Home Screen web app receiving a push
+while its origin was unreachable — and noted that, unlike the origin-permanence question,
+**getting it wrong would change the design**.
+
+It is now first-hand fact on this hardware. Push delivery is genuinely outbound-only: the box is
+the HTTP client at send time, the payload is encrypted end to end, and the service worker never
+needs to reach the box to display a notification. Tailnet-only hosting stands — no port forward,
+no public endpoint, and the authentication question stays closed.
+
+The tap does not resolve while Tailscale is off, which is expected and is exactly why the spec
+requires notification content to carry enough to decide without opening anything.
