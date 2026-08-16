@@ -9,6 +9,7 @@ edges:
     type: implements
 meta:
   ticket: build
+  claimed: filters-agent
 ---
 ## What to build
 
