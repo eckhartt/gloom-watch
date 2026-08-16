@@ -7,6 +7,8 @@ parent: 01M04PFVGGXDDF82HM2NY6J000
 edges:
   - to: 01M04P3SX9KAV082W044TGV9GD
     type: implements
+  - to: 01M04PMABR6SV1W2V18DQC6YA1
+    type: blocks
 meta:
   ticket: build
 ---
