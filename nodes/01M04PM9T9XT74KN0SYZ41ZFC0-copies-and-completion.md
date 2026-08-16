@@ -9,6 +9,8 @@ edges:
     type: implements
   - to: 01M04PMABR6SV1W2V18DQC6YA1
     type: blocks
+  - to: 01M04PMAX67AJSF3H22Z0VB3NZ
+    type: blocks
 meta:
   ticket: build
 ---
