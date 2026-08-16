@@ -2,7 +2,7 @@
 id: 01M042KP8G0DGKBTRHKXEMCHAY
 type: decision
 title: How is the collection backed up, exported and restored?
-status: deciding
+status: ruled
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 meta:
   ticket: grilling
