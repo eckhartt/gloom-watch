@@ -15,6 +15,8 @@ edges:
     type: blocks
   - to: 01M04PMS9DHFMM2HR6H4H618W9
     type: blocks
+bindings:
+  branch: feat/copies-completion
 meta:
   ticket: build
   claimed: copies-agent
