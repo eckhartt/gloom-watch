@@ -8,6 +8,7 @@ import { APP_STATE_KEYS, readAppStateNumber } from "../server/db/app-state.ts";
 import { openDatabase } from "../server/db/client.ts";
 import type { HealthDocument } from "../shared/contract.ts";
 import { HEALTH_PATH } from "../shared/contract.ts";
+import { committedMigrationCount } from "./helpers/temp-database.ts";
 
 /**
  * The heartbeat is the module an OS-level `Bun.cron` entry runs in its own process. Registration
@@ -50,7 +51,7 @@ describe("the OS-level cron heartbeat", () => {
 			}).request(HEALTH_PATH);
 			const body = (await response.json()) as HealthDocument;
 			expect(body.lastHeartbeatAt).toBe(scheduledTime);
-			expect(body.migrationsApplied).toBe(1);
+			expect(body.migrationsApplied).toBe(committedMigrationCount());
 		} finally {
 			reader.close();
 		}

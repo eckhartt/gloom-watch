@@ -7,7 +7,11 @@ import { DEFAULT_CLIENT_DIR, resolveFromRepo } from "../server/config.ts";
 import { APP_STATE_KEYS, seedInitialState, writeAppState } from "../server/db/app-state.ts";
 import type { HealthDocument } from "../shared/contract.ts";
 import { HEALTH_PATH } from "../shared/contract.ts";
-import { createTempDatabase, type TempDatabase } from "./helpers/temp-database.ts";
+import {
+	committedMigrationCount,
+	createTempDatabase,
+	type TempDatabase,
+} from "./helpers/temp-database.ts";
 
 /**
  * Hono's handlers against a real migrated SQLite database. The spec is explicit: do not mock
@@ -41,7 +45,7 @@ describe(`GET ${HEALTH_PATH}`, () => {
 		expect(body.service).toBe("gloom-watch");
 		expect(body.timezone).toBe("Australia/Brisbane");
 		expect(body.installedAt).toBe(1_700_000_000_000);
-		expect(body.migrationsApplied).toBe(1);
+		expect(body.migrationsApplied).toBe(committedMigrationCount());
 		expect(body.serverTimeMs).toBe(1_800_000_000_000);
 	});
 

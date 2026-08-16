@@ -9,7 +9,11 @@ import {
 } from "../server/db/app-state.ts";
 import { BUSY_TIMEOUT_MS } from "../server/db/client.ts";
 import { countAppliedMigrations } from "../server/db/migrate.ts";
-import { createTempDatabase, type TempDatabase } from "./helpers/temp-database.ts";
+import {
+	committedMigrationCount,
+	createTempDatabase,
+	type TempDatabase,
+} from "./helpers/temp-database.ts";
 
 describe("the SQLite connection", () => {
 	let temp: TempDatabase;
@@ -78,13 +82,13 @@ describe("the committed migration", () => {
 	});
 
 	it("is recorded so a deployment can prove it ran", () => {
-		expect(countAppliedMigrations(temp.handle)).toBe(1);
+		expect(countAppliedMigrations(temp.handle)).toBe(committedMigrationCount());
 	});
 
 	it("is idempotent when applied twice", () => {
 		// The server applies migrations on every boot, and so does the cron process.
 		expect(() => createTempDatabase().dispose()).not.toThrow();
-		expect(countAppliedMigrations(temp.handle)).toBe(1);
+		expect(countAppliedMigrations(temp.handle)).toBe(committedMigrationCount());
 	});
 });
 
