@@ -4,6 +4,9 @@ type: doc
 title: Gloom Watch — build-ready spec (rev 3)
 status: draft
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+edges:
+  - to: 01M04MX3DEH0Y82N35AS7K2WGG
+    type: supersedes
 ---
 **Revision 3. This is the build document.**
 
