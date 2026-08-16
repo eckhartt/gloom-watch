@@ -3,8 +3,8 @@ import type { GloomDatabase } from "./client.ts";
 import { appState } from "./schema.ts";
 
 /**
- * The keys the skeleton uses. Kept as a frozen map rather than loose strings so a typo is a
- * type error rather than a silently absent row.
+ * The server-owned scalars. Kept as a frozen map rather than loose strings so a typo is a type
+ * error rather than a silently absent row.
  */
 export const APP_STATE_KEYS = {
 	/** UTC epoch ms — when this database was first opened by the server. Written once. */
@@ -13,6 +13,13 @@ export const APP_STATE_KEYS = {
 	timezone: "timezone",
 	/** UTC epoch ms — last run of the OS-level cron heartbeat, from its own process. */
 	lastHeartbeatAt: "last_heartbeat_at",
+	/**
+	 * ETag of TCGdex's `datas.json` image hash manifest as last fetched. The manifest is ~6.4 MB
+	 * and is keyed by set nesting rather than by card, so it has no per-card conditional-fetch
+	 * story; its ETag is the whole of the story at the manifest level, and a 304 means no card
+	 * image anywhere has moved.
+	 */
+	corpusImageManifestEtag: "corpus_image_manifest_etag",
 } as const;
 
 export type AppStateKey = (typeof APP_STATE_KEYS)[keyof typeof APP_STATE_KEYS];
