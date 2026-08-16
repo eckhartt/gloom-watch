@@ -15,7 +15,6 @@ bindings:
   branch: feat/corpus-ingest
 meta:
   ticket: build
-  claimed: corpus-agent
 ---
 ## What to build
 
