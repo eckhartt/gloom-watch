@@ -4,6 +4,7 @@ import { logger } from "hono/logger";
 import type { HealthDocument } from "../shared/contract.ts";
 import { HEALTH_PATH } from "../shared/contract.ts";
 import { PUSH_BASE_PATH } from "../shared/push.ts";
+import { createBinderRoutes } from "./binder/http.ts";
 import { type CorpusSyncStarter, createCorpusRoutes } from "./corpus/http.ts";
 import { countVariants, readLastSuccessfulSyncAt } from "./corpus/repository.ts";
 import { defaultCorpusSyncStarter } from "./corpus/runner.ts";
@@ -60,7 +61,7 @@ export function createApp(deps: AppDependencies): Hono {
 			corpusVariantCount: countVariants(db),
 			serverTimeMs: now(),
 		};
-		// The binder document will be cacheable; health never is.
+		// The binder document is cacheable and revalidates on an ETag; health never is.
 		c.header("Cache-Control", "no-store");
 		return c.json(body);
 	});
@@ -74,6 +75,8 @@ export function createApp(deps: AppDependencies): Hono {
 			...(deps.env === undefined ? {} : { env: deps.env }),
 		}),
 	);
+
+	app.route("/", createBinderRoutes({ db: deps.handle.db, now }));
 
 	app.route(
 		"/",

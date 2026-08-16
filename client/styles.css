@@ -205,3 +205,317 @@ footer {
 	padding-top: 1rem;
 	border-top: 1px solid var(--rule);
 }
+
+a {
+	color: var(--leaf);
+}
+
+/* ---------------------------------------------------------------------------
+ * The binder.
+ *
+ * Dense, precise, typographic. The art is the content; everything around it is
+ * a hairline and a monospaced label. There is no aggregate summary above the
+ * grid and no density map — both are ruled out, and the grid is how the
+ * collection is meant to be read.
+ * ------------------------------------------------------------------------- */
+
+main.binder {
+	max-width: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	/*
+	 * `dvh` rather than `vh`: on iOS Safari `100vh` is the viewport with the toolbars hidden, so
+	 * the bottom of the grid sits under the home indicator until the page is scrolled. The safe
+	 * areas are subtracted because `body` already pads by them, and adding a full viewport
+	 * height inside that padding is what makes the page itself scroll — which would take the
+	 * grid's scroll position with it every time the sheet opened.
+	 */
+	height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
+
+.binder-bar {
+	flex: none;
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.5rem 0.75rem;
+	border-bottom: 1px solid var(--rule);
+	font-size: 0.6875rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--ink-dim);
+}
+
+.binder-wordmark {
+	color: var(--ink);
+}
+
+.binder-link {
+	color: var(--ink-dim);
+	text-decoration: none;
+	border-bottom: 1px solid var(--rule);
+}
+
+.binder-scroll {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	/* Keeps a flick at the top or bottom of the grid from scrolling whatever is behind it. */
+	overscroll-behavior: contain;
+	padding: 6px 0 3rem;
+}
+
+.binder-canvas {
+	position: relative;
+	width: 100%;
+}
+
+.binder-row {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	display: flex;
+	gap: 6px;
+	padding: 0 6px;
+}
+
+.binder-note {
+	padding: 1rem 0.75rem;
+	margin: 0;
+}
+
+/*
+ * The tile. `button` above it is styled as the app's primary action, so every one of those
+ * properties is reset here rather than inherited into a grid of 765 leaf-green rectangles.
+ */
+.binder-cell {
+	flex: none;
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	padding: 0;
+	min-height: 0;
+	background: transparent;
+	border: none;
+	border-radius: 0;
+	color: var(--ink-dim);
+	font: inherit;
+	font-size: 0.5625rem;
+	text-align: left;
+	cursor: pointer;
+	-webkit-tap-highlight-color: transparent;
+}
+
+.binder-art {
+	display: block;
+	position: relative;
+	width: 100%;
+	overflow: hidden;
+	border-radius: 3px;
+	background: var(--panel);
+}
+
+.binder-art img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.binder-art-missing {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	padding: 0.25rem;
+	text-align: center;
+	line-height: 1.25;
+	color: var(--ink-dim);
+	border: 1px dashed var(--rule);
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+/*
+ * OWNED vs NEEDED — the distinction the whole screen exists to make, and it has to survive
+ * being read at arm's length without reading any text.
+ *
+ * Needed is desaturated and dimmed behind a hairline: a hole in the binder, the art visible
+ * enough to recognise but plainly not held. Owned is full colour inside a solid leaf border
+ * with a filled corner mark, so a held card pops out of a page of holes from across a table.
+ *
+ * Three signals rather than one — saturation, border and the corner mark — because any single
+ * one of them is a coin flip for a colour-blind reader or in direct sunlight.
+ */
+/*
+ * The edge is drawn on an absolutely-positioned overlay, **not as an inset shadow on the tile
+ * itself**.
+ *
+ * An inset `box-shadow` is painted in the element's background layer, and the artwork is a
+ * full-bleed in-flow `<img>` that paints on top of it. Checked in a browser: the computed style
+ * carried a perfectly correct green ring and not one pixel of it was on screen. A positioned
+ * pseudo-element paints after in-flow content, so this one is actually visible.
+ */
+.binder-art::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: 3px;
+	pointer-events: none;
+}
+
+/*
+ * A *light* rim, not `--rule`. Also checked at native resolution: `--rule` (#22322a) against
+ * `--ground` (#0c1310) is indistinguishable, so the hairline was doing nothing — and a cue that
+ * is specified but invisible is worse than no cue, because it gets counted as one of the three.
+ */
+.binder-cell-needed .binder-art {
+	filter: grayscale(0.6) brightness(0.62);
+}
+
+.binder-cell-needed .binder-art::before {
+	box-shadow: inset 0 0 0 1px rgb(230 239 233 / 0.14);
+}
+
+.binder-cell-owned .binder-art {
+	filter: none;
+}
+
+/*
+ * Two rings, not one. A leaf border sitting directly against green artwork — and a great deal of
+ * this line's artwork is green — reads as part of the picture. The 1px of ground outside it is
+ * what makes the border a border whatever the card behind it looks like.
+ */
+.binder-cell-owned .binder-art::before {
+	box-shadow:
+		inset 0 0 0 1px var(--ground),
+		inset 0 0 0 3px var(--leaf);
+}
+
+/* Sized against an 86px tile: small enough to be a mark, large enough to survive a fast scroll. */
+.binder-cell-owned .binder-art::after {
+	content: "";
+	position: absolute;
+	top: 4px;
+	right: 4px;
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	background: var(--leaf);
+	box-shadow: 0 0 0 2px var(--ground);
+}
+
+/*
+ * Two lines, stacked, not one line split down the middle.
+ *
+ * Side by side, the badge got half an 86px tile and `1ED · SHDW` came out as `1ED · S…` — an
+ * elided badge is worse than a shorter one, because the reader cannot tell whether the token
+ * that got cut was the one that mattered. Stacked, each line gets the full tile width, and the
+ * caption height was already reserving two lines.
+ */
+.binder-caption {
+	display: flex;
+	flex-direction: column;
+	line-height: 1.2;
+	min-width: 0;
+}
+
+.binder-number {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.binder-cell-owned .binder-number {
+	color: var(--leaf);
+}
+
+.binder-badge {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	opacity: 0.75;
+}
+
+/* --- the variant sheet ---------------------------------------------------- */
+
+.sheet-layer {
+	position: fixed;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	z-index: 10;
+}
+
+.sheet-backdrop {
+	position: absolute;
+	inset: 0;
+	background: rgb(0 0 0 / 0.6);
+}
+
+.sheet {
+	position: relative;
+	margin: 0;
+	max-height: 85dvh;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	background: var(--panel);
+	border-top: 1px solid var(--rule);
+	border-radius: 10px 10px 0 0;
+	padding: 0.85rem 0.85rem calc(1.25rem + env(safe-area-inset-bottom));
+}
+
+.sheet-head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 0.75rem;
+	margin-bottom: 0.75rem;
+}
+
+.sheet-name {
+	margin: 0;
+	font-size: 1rem;
+	letter-spacing: -0.01em;
+	text-transform: none;
+	color: var(--ink);
+}
+
+.sheet-set {
+	margin: 0.2rem 0 0;
+	font-size: 0.75rem;
+	color: var(--ink-dim);
+	overflow-wrap: anywhere;
+}
+
+.sheet-body {
+	display: flex;
+	gap: 0.85rem;
+	align-items: flex-start;
+	flex-wrap: wrap;
+}
+
+.sheet-art {
+	width: 42%;
+	max-width: 12rem;
+	min-width: 7rem;
+	border-radius: 5px;
+	display: block;
+}
+
+.sheet-art-missing {
+	width: 42%;
+	min-width: 7rem;
+}
+
+.sheet-facts {
+	flex: 1;
+	min-width: 11rem;
+	background: transparent;
+	border: 1px solid var(--rule);
+}

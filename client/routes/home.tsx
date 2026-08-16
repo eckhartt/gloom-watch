@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { fetchHealth } from "../api.ts";
 import { NotificationSection } from "../notifications.tsx";
@@ -6,11 +7,16 @@ import { serviceWorkerScope } from "../pwa.ts";
 import { CorpusPanel } from "./corpus.tsx";
 
 /**
- * The Home Screen.
+ * The status screen, at `/status`.
+ *
+ * This was the app's only screen through the walking skeleton, the push transport and the corpus
+ * ingest. The binder took `/` when it landed, which is where it belongs — everything here is
+ * something the owner consults when they want to know why the app is behaving oddly, not
+ * something they open to look at the collection.
  *
  * Everything in the first block is read out of SQLite by the server and rendered here. The
  * masterset panel below it is the corpus surface: press sync, watch the job, read the variant
- * count and the last-synced time. The binder view replaces this screen in a later ticket.
+ * count and the last-synced time.
  */
 
 function formatInstant(value: number | null, timezone: string): string {
@@ -59,6 +65,9 @@ export function HomeScreen() {
 			<header>
 				<h1>Gloom Watch</h1>
 				<p className="subtitle">Masterset tracker — Oddish, Gloom, Vileplume, Bellossom</p>
+				<p className="subtitle">
+					<Link to="/">← the binder</Link>
+				</p>
 			</header>
 
 			<section>

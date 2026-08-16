@@ -1,9 +1,11 @@
 import type {
+	BinderDocument,
 	CorpusStatusDocument,
 	CorpusSyncJobDocument,
 	HealthDocument,
 } from "../shared/contract.ts";
 import {
+	BINDER_PATH,
 	CORPUS_STATUS_PATH,
 	CORPUS_SYNC_PATH,
 	corpusSyncJobPath,
@@ -33,6 +35,17 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
 
 export function fetchHealth(signal?: AbortSignal): Promise<HealthDocument> {
 	return getJson<HealthDocument>(HEALTH_PATH, signal);
+}
+
+/**
+ * The whole binder, in one request.
+ *
+ * No parameters, ever — not a page, not a filter. The service worker caches whatever comes back
+ * from this URL, and a URL that varies would leave it holding one arbitrary slice of the
+ * masterset instead of the masterset. Filtering happens over the document once it is here.
+ */
+export function fetchBinder(signal?: AbortSignal): Promise<BinderDocument> {
+	return getJson<BinderDocument>(BINDER_PATH, signal);
 }
 
 export function fetchCorpusStatus(signal?: AbortSignal): Promise<CorpusStatusDocument> {

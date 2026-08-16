@@ -93,7 +93,17 @@ path keys off TCGdex's own hash manifest. Card identity includes language, becau
 and fr `base1-58` are different cards; variant identity is `(card, variant_id)`, because all 817
 variants share only 21 distinct variant IDs and the worst is shared by 264 cards.
 
-Nobody can record a copy yet. The next slice is the binder — the visual grid of every variant.
+**The binder** is the app's first screen. `GET /api/binder` answers with every variant, its five
+axes and its ownership state in **one unpaginated document** — ~290 KB for the live corpus, with
+an ETag so an unchanged binder revalidates for nothing. The grid over it is virtualised, card
+images are served from the stored BLOBs and cached `CacheFirst` by the service worker, and
+tapping a card opens a bottom sheet rather than navigating, so the binder keeps its scroll
+position. Default order is set release date descending, then card number — which is why the
+corpus sync grew a **sets phase**: no TCGdex endpoint but `/v2/{lang}/sets/{setId}` carries a
+release date, so it is fetched once per set and never asked for again.
+
+Nobody can record a copy yet, so every cell in the binder currently reads as *needed*. The owned
+treatment is built and tested; the copies table is the next slice.
 
 ## Licence
 
