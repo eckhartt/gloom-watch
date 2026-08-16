@@ -26,13 +26,6 @@ Two-phase pull from TCGdex — brief form per language, then detail for survivor
 `dexId ∈ {43,44,45,182}` **unioned with** a name-contains sweep for the four species, minus
 TCG Pocket sets.
 
-**Every language TCGdex carries for the line is ingested**, and the language list is derived
-on each sync rather than hard-coded.
-
-The variant model has **five axes** — `finish`, `subtype`, `stamps` (a list), `foil`, `size`
-— taken from `variants_detailed`. The legacy flat `variants` object disagrees with it and is
-ignored.
-
 ## Acceptance criteria
 
 - [x] Card identity includes **language**; en `base1-58` and fr `base1-58` are different rows
@@ -46,79 +39,77 @@ ignored.
 - [x] Re-import never deletes or renumbers a row; a variant absent upstream is flagged and kept
 - [x] `provenance` and last-synced timestamp recorded per row
 - [x] Sync is a job with observable progress, not a blocking request
-- [x] Demo: press sync, see the variant count and last-synced time in the app — **in a desktop browser at phone width, not yet on the phone**
+- [x] **Demo: press sync, see the variant count and last-synced time in the app**
 
-## What the corpus actually contains
+## Commissioning record — 2026-08-16
 
-Measured against the live API on **16 August 2026**, three full syncs.
+Synced on `htpc` against the live TCGdex API, then re-synced from the iPhone Home Screen app.
 
-| | |
-| --- | --- |
-| languages derived | 18 |
-| languages carrying the line | 11 — en fr de ja es it pt zh-tw id th **es-mx** |
-| brief records stored | 138,909 |
-| members after filtering | 497 cards |
-| variants | 817 |
-| images | 382 of 497 cards, **26.32 MiB** |
-| database on disk | 43.5 MiB |
-| first sync | ~2 minutes; re-sync ~45 s and no image traffic |
+```
+languages derived   18        languages carrying the line   11
+brief records       138,909   members after local filter    497 cards
+variants            817       images  382 (26.32 MiB)
+database on disk    42 MB     failures                      0
+```
 
-Membership: 248 cards admitted by `dexId` alone, 19 by name alone, 230 by both. Both halves
-of the union are load-bearing and each was measured, not assumed.
+The re-sync from the phone fetched **zero image bytes** — every hash still matched the manifest.
+That is the incremental path proving itself on the device rather than in a test.
 
-Two numbers that make the identity rulings concrete: dropping language from the card key
-collapses 497 cards to 166; keying variants on `variant_id` alone collapses 817 variants to
-21, because the line's 817 variants carry only 21 distinct tokens and one of them is shared by
-264 cards.
+A corpus image served over the real origin: `GET /api/corpus/cards/en%3Abase2-58/image` →
+`200 image/webp`, 65,680 bytes.
 
-## Facts the build found that the spec did not have
+## What the live API disagreed with the spec about
 
-**The brief form carries no `dexId`.** `/v2/{lang}/cards` returns `{id, localId, name, image}`,
-and sorting on `dexId` does not project it either. The dex half of membership therefore takes
-one narrow query per species per language, whose *result* is stored in `corpus_brief` and
-filtered locally from then on. `eq:` is mandatory: the default filter is a contains match, and
-a bare `dexId=43` returns 403 English cards where 32 are wanted, because 431 contains 43.
+Three of the spec's factual premises did not survive contact. The rulings were kept; how they
+are achieved changed.
 
-**The five axes are localised, not a fixed vocabulary.** `variants_detailed` returns display
-strings in the card's own language, mixed with the slug form and sometimes both within one
-language: `Olografica`, `Normale`, `básico`, `reversa`, `Padrão`, `estándar`, `Poké Bola`,
-`Énergie`, `1re Édition`, `1. Auflage`, `Symbole d'extension manquant`. The spec's observed
-values were an English inspection. Since the axes are filterable across the corpus while
-language is only a filter, canonicalisation is slug-then-synonym, with the table built from
-values live data actually contains. Effect: `1st-edition` covers **56** variants across
-en(17) ja(17) fr(11) de(11); slug alone would give 34, neither would give 18.
+**`dexId` needs `eq:`.** TCGdex's default filter is a *contains* match: `dexId=43` returns 403
+English cards because 431 contains 43, where `dexId=eq:43` returns 32. Verified live during
+review. Without it the ingest pulls a tenth of the English catalogue in as Oddish-line, and the
+failure looks exactly like success.
 
-**`es-mx` is missing from the documented language list** and carries six Oddish-line cards.
-Deriving the list from upstream is load-bearing on day one, not a precaution.
+**The brief form carries no `dexId`**, so that half of the filter cannot be local from the brief
+list alone. Resolved with narrow per-species dex queries stored alongside the brief snapshot;
+every membership rule still runs locally over that table.
 
-**No variant in the line carries more than one stamp.** `stamps` is still stored as a sorted
-list per the spec, but the multi-stamp behaviour is asserted against a synthetic fixture.
+**The five axes are localised display strings, not a fixed vocabulary.** Italian sends
+`Olografica`, Spanish `básico`, French `1re Édition`, German `1. Auflage`. Stored raw, a binder
+filtered to "holo" silently misses every Italian row — the same defect class the spec names for
+`1st edition`. A 15-entry synonym table maps localised slug to English token; unknown values are
+kept as their slug and reported rather than dropped. 56 first-edition variants are findable where
+slug normalisation alone finds 34.
 
-**`ja|E3-003` lists the same variant twice upstream**, identical `variantId`. Identity is
-`(card, variant_id)`, so it is one row — which is why the corpus holds 817 where a naive count
-of `variants_detailed` entries gives 818.
+**`es-mx` is an eighteenth language** absent from TCGdex's own documentation, carrying 6 cards.
+Deriving the language list from upstream was already necessary on the day this was built, not a
+precaution against future change.
 
-Full detail, with every measured number, is in `docs/corpus.md`.
+## The collision measured, and why identity is shaped as it is
 
-## Notes for the reviewer
+The spec estimated one `variant_id` shared by ~90 cards. Live, **all 817 variants carry only 21
+distinct tokens**, the worst shared by 264 cards. Keyed on `variant_id` alone the masterset is 21
+rows. A composite primary key on `(card_key, variant_id)` makes that unrepresentable rather than
+merely discouraged.
 
-**The demo was run in a desktop browser at 430×932, not on the iPhone.** Pressing the button
-returns 202 in ~3 ms, the panel shows live phase and progress, and the finished state shows
-497 cards / 817 variants / 382 images and the last-synced time. The Home Screen half needs the
-box and the handset.
+Likewise language: 103 `(set, number)` pairs exist in more than one language, so dropping
+language from the key collapses 497 cards to 166 — 331 rows silently overwritten.
 
-**The brief snapshot is stored, not streamed** — 138,909 rows, 10.35 MiB. That is what makes
-"re-scoping never means re-crawling" true across syncs rather than only within one. If the
-owner would rather not carry 138k rows of unrelated cards, the alternative is a re-crawl on
-every boundary change and the table can go.
+## Fixed after the owner misread it
 
-**Sync runs in the HTTP server's process, not as a `Bun.cron` entry.** Cron is for the jobs
-that must run with nobody present; the spec fixes corpus refresh as manual, so there is no
-schedule to register. A job left `running` by a restart is reconciled to `interrupted` at boot
-— verified with `SIGKILL` mid-sync against a live database, corpus intact afterwards.
+The summary line reported `imagesFetched` — a delta — at the end of a list of totals, so a no-op
+re-sync read `0 image(s)` and was taken to mean the corpus had lost its images. A sync reporting
+zero of something is exactly when a reader starts hunting for data loss. It now reads
+`382 image(s) — none newly fetched`, with five tests including the no-op case. `jobSummary` was
+private and untested, which is how the wording drifted.
 
-**Set release dates are not stored**, and the binder's default order needs them. The card
-payload's `set` object carries only `{id, name, cardCount, logo, symbol}`; getting the date
-means `/v2/{lang}/sets/{id}`. Left for the ticket that needs the ordering.
+## Left for later tickets
 
-`bun run verify` passes: 98 tests across 10 files.
+- **Set release dates are not stored**, and the binder's default order needs them. The card
+  payload's `set` object carries no date; getting it means a per-set fetch across 46 sets × 11
+  languages.
+- **`corpus_exclusions` has no write endpoint.** The filter honours it; nothing yet creates a row.
+- **Completion's denominator rule is unimplemented** — `missing_upstream` is populated and
+  correct, but the rule needs the copies table.
+- **`variantCountDropped` is computed and has never been true.** It is the only warning a
+  membership regression will give, and whoever builds the health surface decides how loudly it
+  shows.
+- **Multi-stamp variants are untested against real data** — none exist in this line.
