@@ -22,16 +22,43 @@ The union catches the trainer-owned and mechanic variants automatically:
 `Erika's Gloom` (`gym1-45`, `gym1-46`), `Dark Gloom` (`base5-36`), `Gloom δ`
 (`ex13-42`), `エリカのクサイハナ` (`MC-002`).
 
+A card that merely *pictures* the line without carrying the name is **not** in
+scope. Cameo art is out.
+
 ## Masterset
 
-Every distinct **variant** in the Oddish line that was **physically printed**.
+Every distinct **variant** in the Oddish line that was **physically printed** as
+a **Pokémon Trading Card Game** card.
 
-"Physically printed" is load-bearing: TCG Pocket digital-only cards (TCGdex set
-IDs `A#`, `B#`, `P-A`) are **excluded**. They were never printed, cannot be held,
-and cannot appear on eBay — including them would make the masterset permanently
-incompletable.
+Three words are load-bearing:
 
-Current size: **~475 card records → ~765 variants.**
+- **Physically** — TCG Pocket digital-only cards (TCGdex set IDs `A#`, `B#`,
+  `P-A`) are excluded. Never printed, cannot be held, cannot appear on eBay.
+- **Printed** — sealed product is excluded. The app tracks cards, not product.
+- **Trading Card Game** — Topps, Bandai Carddass, Amada, vending-machine prints,
+  stickers and jumbo/oversized cards are all excluded. TCGdex carries none of
+  them, so each would be a hand-typed row with no image, no stable ID, and
+  nothing for the eBay matcher to recognise.
+
+Size: **~765 variants** from TCGdex, plus manual rows.
+
+## Variant
+
+**The unit of collecting — one row in the masterset, and the thing a completion
+percentage counts.**
+
+A variant is a card together with its print-variant attributes, taken from
+TCGdex's `variants_detailed`: finish (`normal` / `holo` / `reverse`), and subtype
+or stamp such as `1st-edition`, `shadowless`, `unlimited`,
+`1999-2000-copyright`, `missing-expansion-symbol`, prerelease `set-logo`, and
+World Championship deck stamps (`chris-fulop`, `ross-cawthorn`).
+
+So Base Set Charizard resolves to four distinct variants, and "I have the
+Unlimited, I still need the 1st Edition" is expressible. Any coarser grain would
+mark a card complete on owning any one printing.
+
+**Identity:** `(card_id, variantId)`. Never `variantId` alone — it is a hash of
+the *attribute set* and is shared across different cards.
 
 ## Card
 
@@ -45,22 +72,19 @@ the other's namespace.
 
 A card is not the collectible unit. A **variant** is.
 
-## Variant
+## Print-run distinction vs per-object defect
 
-**The unit of collecting — one row in the masterset, and the thing a completion
-percentage counts.**
+**The rule that decides whether something earns a variant row.**
 
-A variant is a card together with its print-variant attributes, taken from
-TCGdex's `variants_detailed`: finish (`normal` / `holo` / `reverse`), and subtype
-or stamp such as `1st-edition`, `shadowless`, `unlimited`,
-`1999-2000-copyright`, `missing-expansion-symbol`.
-
-So Base Set Charizard resolves to four distinct variants, and "I have the
-Unlimited, I still need the 1st Edition" is expressible. Any coarser grain would
-mark a card complete on owning any one printing.
-
-**Identity:** `(card_id, variantId)`. Never `variantId` alone — it is a hash of
-the *attribute set* and is shared across different cards.
+- A **print-run distinction** affected a whole batch as it left the press.
+  Shadowless, 1st Edition, Unlimited, `1999-2000-copyright`,
+  `missing-expansion-symbol`. Two collectors' copies of it are the same
+  collectible, so **it gets its own variant row**.
+- A **per-object defect** happened to one physical card. Miscuts, ink errors,
+  colour shifts, crimps, off-centre and square cuts. Two miscut Glooms are not
+  the same collectible as each other, and there is no source, ID or image for
+  any of them, so **it is not modelled anywhere** — not as a variant, and not as
+  a field on a copy.
 
 ## Copy
 
@@ -68,9 +92,25 @@ the *attribute set* and is shared across different cards.
 
 The variant is the abstract printed thing; the copy is the object in the binder.
 Condition, grading and purchase details belong to the copy, never to the variant
-— a PSA 10 and a raw card are the same printed variant.
+— a PSA 10 and a raw card are the same printed variant, so a graded eBay listing
+still resolves to the same row.
 
-*(What a copy records is still being decided — see the collection-model ticket.)*
+A copy carries **no defect or error field**, per the per-object-defect rule above.
+
+*(The remaining fields of a copy are still being decided — see the collection-model
+ticket.)*
+
+## Source — `tcgdex` | `manual`
+
+Every variant records where it came from.
+
+**Manual variants are first class and count toward completion.** They exist
+because TCGdex has zero Oddish-line records in Korean or Simplified Chinese
+despite carrying those languages, and is missing "The Best of XY" (~4 cards) in
+every language.
+
+Consequence for ingest: a corpus re-import must never delete a manual row, never
+renumber one, and never orphan a copy pointing at one.
 
 ## Listing
 
