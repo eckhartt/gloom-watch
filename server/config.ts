@@ -28,6 +28,15 @@ export interface ServerConfig {
 	readonly port: number;
 	/** IANA timezone seeded on first boot only; thereafter the database is authoritative. */
 	readonly defaultTimezone: string;
+	/**
+	 * The origin the phone reaches the app on — the Tailscale Serve hostname in production.
+	 *
+	 * A push notification's `navigate` target has to be an absolute same-origin URL, and the
+	 * process that builds it may be a cron job with no request to read a `Host` header from. So
+	 * the origin is configuration rather than something inferred, and getting it wrong costs a
+	 * notification that buzzes and then opens nothing.
+	 */
+	readonly publicOrigin: string;
 }
 
 export const DEFAULT_DATABASE_PATH = "data/gloom-watch.db";
@@ -49,13 +58,28 @@ function readPort(raw: string | undefined): number {
 	return port;
 }
 
+function readOrigin(raw: string | undefined, host: string, port: number): string {
+	if (raw === undefined || raw === "") return `http://${host}:${port}`;
+	let parsed: URL;
+	try {
+		parsed = new URL(raw);
+	} catch {
+		throw new Error(`GLOOM_WATCH_ORIGIN must be an absolute URL, got ${JSON.stringify(raw)}`);
+	}
+	return parsed.origin;
+}
+
 export function loadConfig(env: Record<string, string | undefined> = process.env): ServerConfig {
+	const host = env.HOST || "127.0.0.1";
+	const port = readPort(env.PORT);
+
 	return {
 		databasePath: resolveFromRepo(env.GLOOM_WATCH_DB || DEFAULT_DATABASE_PATH),
 		clientDir: resolveFromRepo(env.GLOOM_WATCH_CLIENT_DIR || DEFAULT_CLIENT_DIR),
 		migrationsDir: resolveFromRepo(env.GLOOM_WATCH_MIGRATIONS_DIR || DEFAULT_MIGRATIONS_DIR),
-		host: env.HOST || "127.0.0.1",
-		port: readPort(env.PORT),
+		host,
+		port,
 		defaultTimezone: env.GLOOM_WATCH_TIMEZONE || "UTC",
+		publicOrigin: readOrigin(env.GLOOM_WATCH_ORIGIN, host, port),
 	};
 }
