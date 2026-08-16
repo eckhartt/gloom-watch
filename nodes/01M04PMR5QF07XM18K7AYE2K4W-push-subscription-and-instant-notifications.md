@@ -62,15 +62,22 @@ is the next ticket.
 the whole client and is inside `enablePush`; no `useEffect` reaches `enablePush`; the only caller
 is the button's `onClick`. Asserted at source in `tests/client/push-environment.test.ts`, because
 the failure — a stray effect raising the one-shot prompt on mount — reads as ordinary code in
-review and is unrecoverable without a trip through Settings. The built app was also loaded in a
-browser: no prompt, no console errors.
+review and is unrecoverable without a trip through Settings.
+
+The built app was then loaded in a browser twice: once normally, and once with the display mode
+emulated as `standalone` so the installed branch would render. No permission prompt appeared in
+either and the console was empty in both. The standalone render showed the soft-ask card —
+*"Gloom Watch can buzz your phone the moment a card you still need is listed… iOS asks once. If
+you say no here, turning it back on means a trip through Settings"* — above **Enable
+notifications** and **Not now**. The card renders; the prompt is behind the tap.
 
 **Both runtime checks.** `describePushEnvironment` is a pure function over the platform facts, so
 the decision is testable without a browser. Asserted: standalone display mode alone does not make
 a device ready, and an absent `Notification` global reports as `unavailable` rather than `denied`
 — conflating those sends the owner to Settings when the real fault is that the icon is a
-bookmark. Confirmed on the rendered page, which showed *Installed as web app: no* beside *Push
-API: present* and refused to ask.
+bookmark. Confirmed on the rendered page in both states: *Installed as web app: no* beside *Push API:
+present*, soft-ask hidden and the button disabled; then *yes* beside *present*, soft-ask shown
+and the button enabled. Two independent rows, and the gate flipping on the one that changed.
 
 **One shape, never both.** `tests/push-transport.test.ts` runs the whole send path against a
 stand-in push service and **decrypts what arrives** with a real P-256 key agreement and RFC 8291
@@ -94,7 +101,8 @@ navigate target is refused unless same-origin and inside the manifest scope, and
 survives path encoding.
 
 **Re-enable button.** Rendered unconditionally, outside every conditional branch (asserted at
-source), disabled only when the device could not subscribe at all. Seen rendered in a browser.
+source), disabled only when the device could not subscribe at all. Seen rendered in both browser
+states — disabled in an ordinary tab, enabled in the standalone render.
 
 **Echo log.** Every send writes a row — size, transport, TTL, status code, response body,
 duration. Tested for `201`, for `400 VapidPkHashMismatch`, for a request that reached nothing,
