@@ -7,6 +7,7 @@ parent: 01M03X4D6HQESBXXDYYRVBVRDR
 meta:
   ticket: prototype
   hitl: yes
+  claimed: prototype-session
 ---
 ## The question
 
