@@ -2,7 +2,7 @@
 id: 01M03XA8CW3DB9JC43TCTEPR8X
 type: decision
 title: "Lock the stack: runtime, storage, frontend, PWA build"
-status: proposed
+status: deciding
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M03XAAMK96EN2TFBHEYGABXQ
