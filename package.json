@@ -21,6 +21,7 @@
     "cron:register": "bun server/jobs/register-cron.ts",
     "vapid:generate": "bun scripts/generate-vapid-keys.ts",
     "push:test": "bun scripts/send-test-push.ts",
+    "corpus:sync": "bun server/jobs/corpus-sync.ts",
     "icons": "bun scripts/generate-icons.ts",
     "test": "bun --bun vitest run",
     "test:watch": "bun --bun vitest",

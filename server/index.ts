@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createApp } from "./app.ts";
 import { loadConfig } from "./config.ts";
+import { reconcileInterruptedJobs } from "./corpus/repository.ts";
 import { seedInitialState } from "./db/app-state.ts";
 import { processDatabase } from "./db/client.ts";
 import { applyMigrations } from "./db/migrate.ts";
@@ -23,6 +24,14 @@ const config = loadConfig();
 const handle = processDatabase(config.databasePath);
 applyMigrations(handle, config.migrationsDir);
 seedInitialState(handle.db, config.defaultTimezone, Date.now());
+
+// A corpus sync runs in this process, so a job still marked `running` when we boot is one this
+// process was killed in the middle of. Reconciling it here, before anything can serve a status
+// that would be a lie, is what makes the job's completion marker survive a restart.
+const interrupted = reconcileInterruptedJobs(handle.db, Date.now());
+if (interrupted > 0) {
+	console.warn(`marked ${interrupted} corpus sync job(s) interrupted by a restart`);
+}
 
 const app = createApp({ handle, clientDir: config.clientDir, requestLog: true });
 
