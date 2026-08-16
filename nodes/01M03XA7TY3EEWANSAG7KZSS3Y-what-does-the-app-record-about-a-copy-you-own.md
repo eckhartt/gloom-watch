@@ -2,7 +2,7 @@
 id: 01M03XA7TY3EEWANSAG7KZSS3Y
 type: decision
 title: What does the app record about a copy you own?
-status: deciding
+status: ruled
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M03XAA33X9BVPKF8BP747MZV
