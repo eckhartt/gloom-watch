@@ -3,6 +3,7 @@ id: 01M04F83A57DERE651ZF1PB3ZQ
 type: doc
 title: Gloom Watch — build-ready spec
 status: draft
+archived: true
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M04HM3VSFAHKSSBFFAJ18K66
