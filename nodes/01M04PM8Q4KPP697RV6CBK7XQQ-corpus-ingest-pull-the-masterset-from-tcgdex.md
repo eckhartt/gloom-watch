@@ -2,7 +2,7 @@
 id: 01M04PM8Q4KPP697RV6CBK7XQQ
 type: feature
 title: Corpus ingest — pull the masterset from TCGdex
-status: active
+status: done
 parent: 01M04PFVGGXDDF82HM2NY6J000
 edges:
   - to: 01M04P3SX9KAV082W044TGV9GD
