@@ -1,6 +1,6 @@
 {
   "view": {
-    "mode": "nested",
+    "mode": "tree",
     "direction": "RIGHT"
   },
   "split": {
