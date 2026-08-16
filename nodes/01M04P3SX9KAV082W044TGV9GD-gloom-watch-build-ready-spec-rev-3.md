@@ -7,6 +7,8 @@ parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M04MX3DEH0Y82N35AS7K2WGG
     type: supersedes
+  - to: 01M04HM3VSFAHKSSBFFAJ18K66
+    type: relates
 ---
 **Revision 3. This is the build document.**
 
