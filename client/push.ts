@@ -107,16 +107,27 @@ export function readPushPlatformFacts(): PushPlatformFacts {
 }
 
 /**
- * Which transport this device can render.
+ * Which transport this device can render, probed as `"navigate" in Notification.prototype`.
  *
- * **This is an inference, not something either specification defines.** The Push API's
- * declarative message format has no client-facing capability flag at all — a user agent simply
- * parses incoming messages opportunistically. What is observable is that `navigate` arrived on
- * `Notification` alongside Declarative Web Push, so its presence stands in for support.
+ * **Neither specification defines a capability flag for this.** The Push API's declarative
+ * message format has none — a user agent parses incoming messages opportunistically — so the
+ * probe is a proxy, and a proxy has to be justified rather than assumed.
  *
- * Wrong in the safe direction it costs one device the silent-push exemption and nothing else,
- * because the classic path works everywhere. Wrong the other way, the worker's parser reads a
- * declarative payload too, so the notification still displays.
+ * The justification is that the proxy's boundaries coincide with the feature's exactly.
+ * `Notification.navigate` is `18.4` on Safari and mirrored on Safari iOS; it is `false` on Chrome
+ * and `false` on Firefox (MDN browser-compat-data, `api.Notification.navigate`). Declarative Web
+ * Push shipped "on iOS and iPadOS 18.4 for web apps added to the Home Screen" (WebKit's Safari
+ * 18.4 release notes). Same version, same platforms, and no engine has one without the other.
+ *
+ * So this **discriminates rather than defaults**: an engine answering `classic` answers it
+ * because it genuinely lacks the property. Desktop Chrome was checked and reports `classic`,
+ * which is the correct answer for an engine MDN records as having no `navigate`.
+ *
+ * **It has still never run on an iPhone.** The transport is stored on the subscription, shown on
+ * the notifications screen and recorded in every echo-log row, precisely so a wrong answer is
+ * visible rather than silent: an iOS 18.4+ handset reading `classic` means this probe is wrong
+ * and that device is running without the silent-push exemption. `docs/deploy.md` step 10 makes
+ * that a check to perform rather than a value to notice.
  */
 export function detectTransport(): PushTransport {
 	return describePushEnvironment(readPushPlatformFacts()).transport;

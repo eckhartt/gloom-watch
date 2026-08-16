@@ -54,16 +54,35 @@ describe("the runtime capability check", () => {
 		);
 	});
 
-	it("falls back to the classic transport whenever declarative cannot be confirmed", () => {
-		expect(describePushEnvironment({ ...INSTALLED_WEB_APP, notification: null }).transport).toBe(
-			"classic",
-		);
+	it("reports declarative when the probe finds it, and classic when it does not", () => {
+		// The probe is `"navigate" in Notification.prototype`, and it discriminates rather than
+		// defaults: MDN records `api.Notification.navigate` as Safari 18.4, mirrored on Safari iOS,
+		// and `false` on both Chrome and Firefox — while WebKit shipped Declarative Web Push on iOS
+		// and iPadOS 18.4. Same version, same platforms, and no engine has one without the other.
+		//
+		// It matters which way this goes. Answering `classic` on an iOS 18.4+ handset puts that
+		// device back on the transport the silent-push penalty applies to, and does it without an
+		// error anywhere — which is why the value is shown on screen, stored on the subscription
+		// and written into every echo-log row.
+		expect(
+			describePushEnvironment({
+				...INSTALLED_WEB_APP,
+				notification: { permission: "granted", declarative: true },
+			}).transport,
+		).toBe("declarative");
+
 		expect(
 			describePushEnvironment({
 				...INSTALLED_WEB_APP,
 				notification: { permission: "granted", declarative: false },
 			}).transport,
 		).toBe("classic");
+	});
+
+	it("falls back to classic when there is no Notification global to probe at all", () => {
+		expect(describePushEnvironment({ ...INSTALLED_WEB_APP, notification: null }).transport).toBe(
+			"classic",
+		);
 	});
 });
 

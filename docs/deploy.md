@@ -244,7 +244,24 @@ the module — is asserted by `tests/sw/push-handler.test.ts` on every `bun run 
 2. The row **Installed as web app** must read `yes` and **Push API** must read `present`. If
    either does not, the icon is a bookmark rather than a web app: remove it and re-add it with
    **Open as Web App** on. There is nothing to fix in software.
-3. **Transport** reads `declarative` on iOS 18.4+ and `classic` below it. Both work.
+3. **Check the Transport row against the handset's iOS version. This is a stop condition, not
+   an observation.**
+
+   | iOS version | Transport must read | If it does not |
+   | --- | --- | --- |
+   | 18.4 or later | `declarative` | **Stop and report it.** |
+   | 16.4 – 18.3 | `classic` | Expected; carry on. |
+
+   Both transports deliver a notification, so a wrong reading here breaks nothing you can see —
+   which is exactly the problem. `declarative` is the transport that is **exempt** from the
+   three-strike penalty. A handset on 18.4+ reading `classic` is running every push through the
+   30-second timer for no reason, and nothing will ever tell you.
+
+   The client decides this by probing `"navigate" in Notification.prototype`. MDN records that
+   property as Safari 18.4, mirrored on Safari iOS, and absent from Chrome and Firefox; WebKit
+   shipped Declarative Web Push on iOS and iPadOS 18.4 — same version, same platforms. The probe
+   was checked against desktop Chrome, which correctly reports `classic`. **It has never run on
+   an iPhone.** This row is that check.
 4. Read the soft-ask, then tap **Enable notifications**. iOS raises its own prompt at that point
    and it can only be answered once — a denial needs Settings → Notifications → Gloom Watch to
    undo.
