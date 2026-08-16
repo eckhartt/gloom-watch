@@ -2,7 +2,7 @@
 id: 01M03XA9GZ6ZRV3CBTF2F460EN
 type: decision
 title: How does an eBay listing resolve to a specific card?
-status: deciding
+status: ruled
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M03XAA33X9BVPKF8BP747MZV
