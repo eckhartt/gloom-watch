@@ -11,8 +11,6 @@ edges:
     type: blocks
   - to: 01M04PMQM4V6S25TFTY92JYR7X
     type: blocks
-  - to: 01M04PMR5QF07XM18K7AYE2K4W
-    type: blocks
 meta:
   ticket: build
 ---
