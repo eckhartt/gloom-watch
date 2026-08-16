@@ -1,7 +1,7 @@
 ---
 id: 01M04PMR5QF07XM18K7AYE2K4W
 type: feature
-title: Push subscription and instant notifications
+title: Push transport and subscription
 status: todo
 parent: 01M04PFVGGXDDF82HM2NY6J000
 edges:
