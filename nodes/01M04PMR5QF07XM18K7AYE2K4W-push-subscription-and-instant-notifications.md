@@ -9,6 +9,8 @@ edges:
     type: implements
   - to: 01M04VPX16J7DTGA1QE2EX7VFB
     type: blocks
+bindings:
+  branch: feat/push-transport
 meta:
   ticket: build
   claimed: push-agent
