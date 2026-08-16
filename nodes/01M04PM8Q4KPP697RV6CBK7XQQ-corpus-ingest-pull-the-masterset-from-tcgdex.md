@@ -13,6 +13,7 @@ edges:
     type: blocks
 meta:
   ticket: build
+  claimed: corpus-agent
 ---
 ## What to build
 
