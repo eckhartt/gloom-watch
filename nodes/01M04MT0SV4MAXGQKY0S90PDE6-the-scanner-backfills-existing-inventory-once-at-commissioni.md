@@ -2,7 +2,7 @@
 id: 01M04MT0SV4MAXGQKY0S90PDE6
 type: decision
 title: The scanner backfills existing inventory once at commissioning
-status: proposed
+status: ruled
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M03X9XFD2CCGM718GJ6D5MBP
