@@ -14,5 +14,11 @@
   },
   "rail": {
     "mode": "collapsed"
+  },
+  "visibility": {
+    "reveal": [
+      "session"
+    ],
+    "showArchived": false
   }
 }
