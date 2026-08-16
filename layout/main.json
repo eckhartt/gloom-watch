@@ -14,5 +14,9 @@
   },
   "rail": {
     "mode": "collapsed"
+  },
+  "visibility": {
+    "reveal": [],
+    "showArchived": true
   }
 }
