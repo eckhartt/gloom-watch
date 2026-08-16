@@ -2,7 +2,7 @@
 id: 01M04JEA06JPZZG3KD4GEPDDY3
 type: decision
 title: missing_upstream variants leave the completion denominator unless owned
-status: proposed
+status: ruled
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M03XAAMK96EN2TFBHEYGABXQ
