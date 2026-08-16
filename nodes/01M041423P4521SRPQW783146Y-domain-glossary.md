@@ -95,14 +95,25 @@ Condition, grading and purchase details belong to the copy, never to the variant
 — a PSA 10 and a raw card are the same printed variant, so a graded eBay listing
 still resolves to the same row.
 
-A copy carries **no defect or error field**, per the per-object-defect rule above.
+A copy carries **no defect or error field**, per the per-object-defect rule
+above — but it does carry a free-text `note`, and **defects may appear there as
+remarks**. The distinction that holds: defects are not data, but they can be
+prose. Nothing counts, filters or matches on a note.
 
-*(The remaining fields of a copy are still being decided — see the collection-model
-ticket.)*
+**One row per physical card**, never a quantity count — two copies of the same
+variant routinely differ in condition, grade and price.
 
-## Source — `tcgdex` | `manual`
+A disposed copy **keeps its row** with `status = disposed` and a date, so
+purchase history survives. Completion counts only `status = owned`.
 
-Every variant records where it came from.
+Price is stored in the currency actually paid **plus a home-currency snapshot
+taken at the moment of purchase** (home currency: **AUD**), because the
+historical exchange rate is unrecoverable later.
+
+## Provenance — `tcgdex` | `manual`
+
+**Where a variant row came from.** A property of the masterset, not of anything
+the owner holds.
 
 **Manual variants are first class and count toward completion.** They exist
 because TCGdex has zero Oddish-line records in Korean or Simplified Chinese
@@ -111,6 +122,29 @@ every language.
 
 Consequence for ingest: a corpus re-import must never delete a manual row, never
 renumber one, and never orphan a copy pointing at one.
+
+**Do not call this "source"** — see below.
+
+## Acquisition source — `ebay` | `shop` | `trade` | `gift` | `auction` | `other`
+
+**Where the owner got a particular copy.** A property of one physical card.
+
+Distinct from **provenance**, which is about where a *variant row* came from.
+The two were briefly both called "source"; they are not the same thing and a
+single word covering both would become two implementations.
+
+**eBay's `seller.username` is never stored here.** Persisting eBay user data
+would remove the option to opt out of eBay's account-deletion notifications,
+forcing a public HTTPS endpoint and ruling out a tailnet-only deployment. A
+free-text note the owner types themselves is fine.
+
+## Priority
+
+An optional ranking on a **variant** the owner does not yet hold.
+
+There is no want-list: in a masterset, anything unowned is implicitly wanted.
+Priority exists as the dial the notification policy needs against a feed of
+1,000–3,000 listings per day.
 
 ## Listing
 
