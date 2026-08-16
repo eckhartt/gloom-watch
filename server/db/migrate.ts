@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
-import { loadConfig } from "../config.ts";
+import { loadDeploymentConfig } from "../config.ts";
 import { type DatabaseHandle, openDatabase } from "./client.ts";
 
 /**
@@ -37,7 +37,7 @@ export function countAppliedMigrations(handle: DatabaseHandle): number {
 
 /** `bun run db:migrate` — apply migrations to the configured database and report. */
 function main(): void {
-	const config = loadConfig();
+	const config = loadDeploymentConfig();
 	const handle = openDatabase(config.databasePath);
 	try {
 		applyMigrations(handle, config.migrationsDir);

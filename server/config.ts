@@ -1,5 +1,6 @@
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadEnvironmentFile } from "./env-file.ts";
 
 /**
  * Every path and port the server needs, resolved from the environment once.
@@ -67,6 +68,30 @@ function readOrigin(raw: string | undefined, host: string, port: number): string
 		throw new Error(`GLOOM_WATCH_ORIGIN must be an absolute URL, got ${JSON.stringify(raw)}`);
 	}
 	return parsed.origin;
+}
+
+/**
+ * Configuration for a process that may not be systemd's child.
+ *
+ * `loadConfig` is deliberately pure — it reads the environment it is handed and touches no disk,
+ * which is what makes it testable. But a process started by cron rather than by systemd has no
+ * environment worth reading: the unit's `EnvironmentFile` was applied to the *service*, and an
+ * OS-level `Bun.cron` entry is not the service's child.
+ *
+ * `server/push/vapid.ts` already loads the file for the VAPID secrets. That was one layer too
+ * deep: it happens after configuration is read, so `GLOOM_WATCH_ORIGIN` was still missing and a
+ * scheduled push would resolve its tap target to loopback — an address the phone cannot reach.
+ * Found at commissioning, by running the sender with a cron-shaped environment.
+ *
+ * Every entry point that is not `systemd`'s child calls this. The file never overwrites a value
+ * already set, so under systemd it is a no-op, and on a development machine the file is simply
+ * absent.
+ */
+export function loadDeploymentConfig(
+	env: Record<string, string | undefined> = process.env,
+): ServerConfig {
+	loadEnvironmentFile({ env });
+	return loadConfig(env);
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): ServerConfig {

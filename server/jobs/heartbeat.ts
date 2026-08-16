@@ -1,4 +1,4 @@
-import { loadConfig } from "../config.ts";
+import { loadDeploymentConfig } from "../config.ts";
 import { APP_STATE_KEYS, writeAppState } from "../db/app-state.ts";
 import { processDatabase } from "../db/client.ts";
 import { applyMigrations } from "../db/migrate.ts";
@@ -21,7 +21,7 @@ import { applyMigrations } from "../db/migrate.ts";
  */
 export default {
 	scheduled(controller: Bun.CronController): void {
-		const config = loadConfig();
+		const config = loadDeploymentConfig();
 		const handle = processDatabase(config.databasePath);
 
 		applyMigrations(handle, config.migrationsDir);

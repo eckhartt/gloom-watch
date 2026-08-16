@@ -18,7 +18,7 @@
  * host, and nothing else.
  */
 
-import { loadConfig } from "../server/config.ts";
+import { loadDeploymentConfig } from "../server/config.ts";
 import { openDatabase } from "../server/db/client.ts";
 import { applyMigrations } from "../server/db/migrate.ts";
 import { sendPushToSubscription } from "../server/push/send.ts";
@@ -34,7 +34,7 @@ function flag(name: string, fallback: string): string {
 }
 
 const dryRun = process.argv.includes("--dry-run");
-const config = loadConfig();
+const config = loadDeploymentConfig();
 
 if ((process.env.GLOOM_WATCH_ORIGIN ?? "") === "") {
 	console.error(

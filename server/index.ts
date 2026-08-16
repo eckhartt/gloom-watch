@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createApp } from "./app.ts";
-import { loadConfig } from "./config.ts";
+import { loadDeploymentConfig } from "./config.ts";
 import { reconcileInterruptedJobs } from "./corpus/repository.ts";
 import { seedInitialState } from "./db/app-state.ts";
 import { processDatabase } from "./db/client.ts";
@@ -19,7 +19,7 @@ import { applyMigrations } from "./db/migrate.ts";
  * Bun-specific APIs this codebase uses are `bun:sqlite` and `Bun.cron`, which is what keeps a
  * retreat to Node cheap and is why Hono was chosen over Elysia.
  */
-const config = loadConfig();
+const config = loadDeploymentConfig();
 
 const handle = processDatabase(config.databasePath);
 applyMigrations(handle, config.migrationsDir);

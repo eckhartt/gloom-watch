@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { loadConfig } from "../config.ts";
+import { loadDeploymentConfig } from "../config.ts";
 import { beginCorpusSync, runCorpusSync } from "../corpus/sync.ts";
 import { HttpTcgdexClient } from "../corpus/tcgdex.ts";
 import { processDatabase } from "../db/client.ts";
@@ -17,7 +17,7 @@ import { applyMigrations } from "../db/migrate.ts";
  * against the repository root through `server/config.ts` as everything else does.
  */
 async function main(): Promise<void> {
-	const config = loadConfig();
+	const config = loadDeploymentConfig();
 	const handle = processDatabase(config.databasePath);
 	applyMigrations(handle, config.migrationsDir);
 
