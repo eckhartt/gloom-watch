@@ -78,10 +78,15 @@ These are starting points for the data-source research, not endorsements:
 - **Backup, export and recovery** of the collection data. The card corpus is
   re-derivable from its source; the owned copies are not, and are the only
   irreplaceable data in the system. Hangs on the collection model.
-- **Marketplaces beyond eBay.** A masterset of the Oddish line is unavoidably
-  full of Japanese-only prints, and those trade on Yahoo Japan Auctions and
-  Mercari JP far more than on eBay. May graduate into tickets once the eBay
-  scanner's shape is known, or may prove to sit past the destination.
+- **Marketplaces beyond eBay.** A masterset of the Oddish line is full of
+  Japanese-only prints, which trade heavily on Yahoo Japan Auctions and Mercari
+  JP. This looked essential when the map was charted; the eBay research has since
+  weakened it. There is no `EBAY_JP` in the Buy APIs, but Japanese cards reach
+  `EBAY_US` anyway — a single US search returned 4,227 Japanese-language
+  listings. So eBay alone is no longer obviously insufficient. Revisit once the
+  scanner has run against real data and the actual Japanese coverage is
+  measurable rather than assumed; it may graduate into tickets, or prove to sit
+  past the destination.
 
 ## Out of scope
 
