@@ -16,7 +16,9 @@
     "mode": "collapsed"
   },
   "visibility": {
-    "reveal": [],
+    "reveal": [
+      "session"
+    ],
     "showArchived": true
   }
 }
