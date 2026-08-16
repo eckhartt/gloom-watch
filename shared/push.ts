@@ -74,16 +74,25 @@ export interface PushNotificationContent {
 	readonly navigate: string;
 	/** BCP 47 tag. The app is `en-AU`; card names may be Japanese, so this is per-notification. */
 	readonly lang?: string;
-	/** Unseen qualifying listings. The badge itself is a later ticket; the field is transport. */
-	readonly appBadge?: number;
 }
+
+/**
+ * **The app badge is deliberately absent.**
+ *
+ * Declarative Web Push carries an `app_badge` member and the badge is a real requirement — but
+ * of a later ticket, and its JSON *type* could not be settled from a primary source here. The
+ * Push API's member list does not enumerate it, and WebKit's own published example writes it as
+ * the string `"1"` rather than the number the Badging API takes. Shipping a coin flip into the
+ * one part of this system whose failures are permanent and invisible on the device is exactly
+ * what the silent-push rule warns against, so the field is left for whoever can hold a handset
+ * while they add it.
+ */
 
 /**
  * Declarative Web Push, per the Push API's declarative push message format.
  *
- * `web_push` and `notification.title` and `notification.navigate` are required; the rest of the
- * object is optional members of `NotificationOptions`. Note the JSON member is `app_badge`, not
- * the camel-cased name the rest of this codebase uses.
+ * `web_push`, `notification.title` and `notification.navigate` are required; the rest of the
+ * object is optional members of `NotificationOptions`.
  *
  * **`mutable` is deliberately absent and must stay absent.** Setting it true dispatches a `push`
  * event to the service worker carrying the proposed notification — which re-arms the 30-second
@@ -98,7 +107,6 @@ export interface DeclarativePushPayload {
 		readonly navigate: string;
 		readonly lang?: string;
 		readonly silent: false;
-		readonly app_badge?: number;
 	};
 }
 
@@ -112,7 +120,6 @@ export interface ClassicPushPayload {
 	readonly body: string;
 	readonly navigate: string;
 	readonly lang?: string;
-	readonly appBadge?: number;
 }
 
 export class PushPayloadTooLargeError extends Error {
@@ -171,7 +178,6 @@ export function buildDeclarativePayload(content: PushNotificationContent): Decla
 			// alerting, which is indistinguishable from the failure this transport exists to avoid.
 			silent: false,
 			...(content.lang === undefined ? {} : { lang: content.lang }),
-			...(content.appBadge === undefined ? {} : { app_badge: content.appBadge }),
 		},
 	};
 }
@@ -183,7 +189,6 @@ export function buildClassicPayload(content: PushNotificationContent): ClassicPu
 		body: content.body,
 		navigate: content.navigate,
 		...(content.lang === undefined ? {} : { lang: content.lang }),
-		...(content.appBadge === undefined ? {} : { appBadge: content.appBadge }),
 	};
 }
 

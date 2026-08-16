@@ -148,6 +148,13 @@ export async function enablePush(): Promise<EnablePushResult> {
 	}
 	if (!environment.notificationSupported) return { ok: false, reason: "no-push-api" };
 
+	// Started before the prompt and awaited after it. The transient activation `subscribe()` needs
+	// is short-lived, and spending it on a round trip to the origin — over a tailnet, from a phone
+	// that may be on cellular — is the difference between a subscription and an unexplained
+	// failure. The user reading the system prompt is the time this has to work in.
+	const configPromise = fetchPushConfig();
+	const registrationPromise = navigator.serviceWorker.ready;
+
 	if (Notification.permission === "denied") return { ok: false, reason: "permission-denied" };
 	if (Notification.permission === "default") {
 		const granted = await Notification.requestPermission();
@@ -155,11 +162,11 @@ export async function enablePush(): Promise<EnablePushResult> {
 		if (granted !== "granted") return { ok: false, reason: "permission-dismissed" };
 	}
 
-	const config = await fetchPushConfig();
+	const config = await configPromise;
 	if (config.vapidPublicKey === null) return { ok: false, reason: "not-configured" };
 	const applicationServerKey = decodeBase64Url(config.vapidPublicKey);
 
-	const registration = await navigator.serviceWorker.ready;
+	const registration = await registrationPromise;
 
 	let subscription = await registration.pushManager.getSubscription();
 	if (subscription !== null && !sameApplicationServerKey(subscription, applicationServerKey)) {

@@ -1,7 +1,6 @@
 import webpush from "web-push";
 import type { PushNotificationContent, PushTransport } from "../../shared/push.ts";
 import {
-	PUSH_PAYLOAD_MAX_BYTES,
 	PUSH_TTL_SECONDS,
 	PushPayloadTooLargeError,
 	serialisePushPayload,
@@ -230,5 +229,3 @@ export async function sendPushToEverySubscription(
 	}
 	return outcomes;
 }
-
-export { PUSH_PAYLOAD_MAX_BYTES, PUSH_TTL_SECONDS };

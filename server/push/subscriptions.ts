@@ -143,10 +143,6 @@ export function listLiveSubscriptions(db: GloomDatabase): PushSubscriptionRow[] 
 	return db.select().from(pushSubscriptions).where(isNull(pushSubscriptions.retiredAt)).all();
 }
 
-export function findSubscription(db: GloomDatabase, id: string): PushSubscriptionRow | null {
-	return db.select().from(pushSubscriptions).where(eq(pushSubscriptions.id, id)).get() ?? null;
-}
-
 /**
  * Mark an endpoint gone. Called only on a `404` or `410`, which are the push service's two ways
  * of saying the subscription no longer exists. **Every other failure leaves the row alone** —

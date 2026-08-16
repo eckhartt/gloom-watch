@@ -38,10 +38,11 @@ describe("the declarative payload", () => {
 		expect(serialised).not.toContain("mutable");
 	});
 
-	it("uses the JSON member name `app_badge`, not a camel-cased one", () => {
-		const payload = buildDeclarativePayload({ ...content, appBadge: 7 });
-		expect(payload.notification.app_badge).toBe(7);
-		expect(JSON.stringify(payload)).not.toContain("appBadge");
+	it("carries no app badge, whose JSON type could not be settled from a primary source", () => {
+		// The Push API's member list does not enumerate `app_badge`, and WebKit's own example
+		// writes it as the string "1" rather than the number the Badging API takes. The badge is a
+		// later ticket and belongs to whoever can check it against a handset.
+		expect(JSON.stringify(buildDeclarativePayload(content))).not.toContain("badge");
 	});
 
 	it("refuses a payload with no title or no navigate target", () => {
