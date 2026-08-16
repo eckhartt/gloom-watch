@@ -56,6 +56,9 @@ bun run build         # build the client into dist/client
 bun run start         # serve the API and the client on http://127.0.0.1:3000
 
 bun run verify        # Bun version, Biome, TypeScript strict, Vitest
+
+bun run vapid:generate  # the push keypair — ONCE, ever; see docs/deploy.md
+bun run push:test       # send a test push by hand, from the server
 ```
 
 `bun run dev` starts Vite on 5173 proxying `/api` to a `bun run dev:server` on 3000. The
@@ -76,7 +79,14 @@ an OS-level `Bun.cron` job survives a full reboot and writes to the same SQLite 
 server reads, and Serve's HTTPS endpoint loads on an iPhone — Tailscale issue 19147 did not
 reproduce.
 
-Nothing of the app itself exists yet. The next slice pulls the masterset from TCGdex.
+**Push transport** is built and proved as far as a development machine can prove it: RFC 8291
+encryption, VAPID signing, both payload shapes and the echo log are exercised end to end against
+a stand-in push service that decrypts what arrives. What only the real origin and the real
+handset can settle — that an iPhone displays the notification, and that it arrives with Tailscale
+off — is [`docs/deploy.md`](docs/deploy.md) steps 10 and 11. **Read the three-strike warning in
+step 10 before sending a push to a real device.**
+
+Nothing of the collection itself exists yet. The next slice pulls the masterset from TCGdex.
 
 ## Licence
 

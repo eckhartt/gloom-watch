@@ -8,6 +8,11 @@ the development machine: Tailscale Serve, `systemd`, the OS-level `Bun.cron` reg
 the Add-to-Home-Screen demo. Everything else — the server, the database, the migration, the
 client build, the service worker and the tests — is verified and passing before you start.
 
+The same is true of push, more sharply. Encryption, VAPID signing, the payload shapes, the echo
+log and the worker's handler shape are all proved by `bun run verify` on any machine. **What
+cannot be proved anywhere but here is that a real iPhone displays the notification** — steps 10
+and 11 below, and read the warning in step 10 before you touch the phone.
+
 ## Before you begin
 
 - A Linux box that is always on, joined to your tailnet. Not a Mac: a sleeping machine misses
@@ -49,7 +54,7 @@ sudo -u gloom /usr/local/bin/bun run build
 ## 4. Write the environment file
 
 ```sh
-sudo install -D -o root -g root -m 0600 /opt/gloom-watch/.env.example \
+sudo install -D -o root -g gloom -m 0640 /opt/gloom-watch/.env.example \
   /etc/gloom-watch/gloom-watch.env
 sudo nano /etc/gloom-watch/gloom-watch.env
 ```
@@ -57,9 +62,57 @@ sudo nano /etc/gloom-watch/gloom-watch.env
 Set `GLOOM_WATCH_TIMEZONE` to the box's IANA timezone name. It is applied on **first boot
 only**; afterwards the database is authoritative and the variable is ignored.
 
-The remaining keys belong to later tickets and may stay empty. The file is root-owned and mode
-0600 — systemd reads it as root before dropping to the `gloom` account, so the service user
-never needs to read it.
+Set `GLOOM_WATCH_ORIGIN` to the Tailscale Serve origin including the scheme —
+`https://htpc.tail594f35.ts.net`. A notification's tap target is built from it, by a process
+that may have no HTTP request to read a `Host` header from.
+
+**The mode is `0640` with group `gloom`, not `0600` root-only.** systemd still reads it as root
+before dropping privileges, so the service account gains nothing it did not have. But the
+scheduled jobs are `Bun.cron` crontab entries running as `gloom` *outside* systemd, and they
+inherit nothing from `EnvironmentFile` — so they have to open this file themselves. Root-only
+0600 makes that impossible, and the way it fails is the dangerous one: `VAPID_PRIVATE_KEY`
+simply absent, in production, in the one process that needed it. Group-read by the account that
+already runs the application is the smallest change that lets both halves work.
+
+If the file already exists at 0600 from an earlier commissioning:
+
+```sh
+sudo chgrp gloom /etc/gloom-watch/gloom-watch.env
+sudo chmod 0640 /etc/gloom-watch/gloom-watch.env
+sudo -u gloom head -c0 /etc/gloom-watch/gloom-watch.env && echo "gloom can read it"
+```
+
+The eBay and backup keys belong to later tickets and may stay empty. The VAPID keys are next.
+
+## 4a. Generate the VAPID keypair — once, ever
+
+```sh
+cd /opt/gloom-watch
+sudo -u gloom /usr/local/bin/bun run vapid:generate \
+  --out /tmp/vapid.env --subject "mailto:you@example.org"
+```
+
+It prints the **public** key and writes both halves to `/tmp/vapid.env` at mode 0600. Copy all
+three lines into `/etc/gloom-watch/gloom-watch.env`, then remove the temporary file:
+
+```sh
+sudo nano /etc/gloom-watch/gloom-watch.env   # paste VAPID_PUBLIC_KEY / _PRIVATE_KEY / _SUBJECT
+sudo shred -u /tmp/vapid.env
+sudo systemctl restart gloom-watch           # only if the service is already running
+```
+
+**Generate it once and do not rotate it.** Every `PushSubscription` the phone takes is created
+against a specific application server key. Rotating means the next send comes back
+`400 VapidPkHashMismatch`, every subscription for the origin is dead, and recovery costs a tap
+on the device. The generator refuses to overwrite an existing keypair for that reason; `--force`
+exists but the cost above is what it buys.
+
+**The private key never leaves that file.** Not into a log, a ticket, a commit or a chat
+message. `GET /api/push/config` serves the public half only.
+
+**`VACUUM INTO` cannot capture this file** — it copies a SQLite database and the keys live
+outside it. The backup job must archive `/etc/gloom-watch/gloom-watch.env` alongside the
+snapshot, or a restore silently omits `VAPID_PRIVATE_KEY` and destroys every subscription.
 
 ## 5. Apply migrations
 
@@ -170,6 +223,103 @@ but the risk is no longer merely accepted on paper.
 **Verifies:** *the site loads on the iPhone over HTTPS*, and *Demo: add to Home Screen, open,
 and see a value that came from SQLite*.
 
+## 10. Enable notifications on the phone
+
+**Read this section before you touch the phone.** iOS enforces a three-strike silent-push
+penalty: every push arms a 30-second timer, and if the service worker has not called
+`showNotification()` before it expires, that is a strike. The counter **never decays and is never
+credited by a success**, and the **third strike revokes every push subscription for the
+origin** — not the one subscription, all of them, permanently, until the owner taps re-enable.
+WebKit **suppresses enforcement whenever a Web Inspector is attached**, so you cannot watch it
+happen while debugging; you find out afterwards. Treat the three strikes as a budget you are
+spending, not as retries.
+
+Two things reduce that risk to close to nothing and both are already built. Devices on iOS 18.4+
+receive **Declarative Web Push**, which dispatches no `push` event to the worker at all and is
+**exempt** from the penalty. Older devices get the classic handler, whose shape — `showNotification()`
+unconditional, from the payload, inside `waitUntil()`, with no request to the origin anywhere in
+the module — is asserted by `tests/sw/push-handler.test.ts` on every `bun run verify`.
+
+1. Open the app from its Home Screen icon. Scroll to **Notifications**.
+2. The row **Installed as web app** must read `yes` and **Push API** must read `present`. If
+   either does not, the icon is a bookmark rather than a web app: remove it and re-add it with
+   **Open as Web App** on. There is nothing to fix in software.
+3. **Transport** reads `declarative` on iOS 18.4+ and `classic` below it. Both work.
+4. Read the soft-ask, then tap **Enable notifications**. iOS raises its own prompt at that point
+   and it can only be answered once — a denial needs Settings → Notifications → Gloom Watch to
+   undo.
+5. The **Subscription** row fills in with an identifier. That means the server has it.
+
+Confirm from the box:
+
+```sh
+sudo -u gloom sqlite3 /opt/gloom-watch/data/gloom-watch.db \
+  "select id, transport, substr(endpoint,1,40) from push_subscriptions where retired_at is null;"
+```
+
+**Verifies:** *Soft-ask precedes the system prompt*, *standalone display mode and Push API both
+checked at runtime*, *subscription records its transport*, and *permanent, gesture-gated
+re-enable button*.
+
+## 11. Send the test push
+
+```sh
+cd /opt/gloom-watch
+sudo -u gloom /usr/local/bin/bun run push:test --dry-run   # look first
+sudo -u gloom /usr/local/bin/bun run push:test
+```
+
+`--dry-run` prints the payload, its byte size and the endpoint host without sending. Use it
+first: it costs nothing and it shows you the `navigate` target before a real push is spent on
+discovering it points at loopback.
+
+A real run prints `status=201 accepted=true`. **That means the push service accepted the
+message, and nothing more.** Whether the phone displayed it is not observable from the server —
+look at the handset.
+
+The row it wrote:
+
+```sh
+sudo -u gloom sqlite3 -header /opt/gloom-watch/data/gloom-watch.db \
+  "select sent_at, kind, transport, payload_bytes, ttl_seconds, status_code, error
+   from push_echo_log order by sent_at desc limit 5;"
+```
+
+**Verifies:** *server-side echo log records every push, its size and the endpoint response*, and
+the demo — *the phone buzzes and the tap opens the app*.
+
+### Prove the cron path finds the private key
+
+The scheduled jobs run outside systemd and inherit none of its `EnvironmentFile`. Run the sender
+with the VAPID variables scrubbed out of the environment, which is what cron actually hands over:
+
+```sh
+cd /opt/gloom-watch
+sudo -u gloom env -u VAPID_PUBLIC_KEY -u VAPID_PRIVATE_KEY -u VAPID_SUBJECT \
+  PATH=/usr/local/bin:/usr/bin:/bin \
+  GLOOM_WATCH_ORIGIN=https://<host>.<tailnet>.ts.net \
+  /usr/local/bin/bun run push:test
+```
+
+If it sends, `server/env-file.ts` read `/etc/gloom-watch/gloom-watch.env` itself and the group
+permission from step 4 is right. If it reports *permission denied*, the file is still 0600
+root-only; go back and fix the mode.
+
+**Verifies:** *a scheduled job that sends a push loads the environment file explicitly*.
+
+### Prove push reaches the phone off-tailnet
+
+Commissioning checklist step 8, and it is not optional — the outbound-only claim underpinning
+the whole hosting decision is well-reasoned inference, **not a confirmed fact**.
+
+1. Turn **Tailscale off** on the iPhone.
+2. Send a push from the box.
+3. The banner should still arrive: push delivery is box → Apple → phone and the app's origin is
+   not involved.
+4. Tapping it will *not* open the app while Tailscale is off — the tap target is tailnet-only.
+   That is expected, and it is why the notification's text has to carry enough to decide on.
+5. Turn Tailscale back on and confirm a tap opens the app.
+
 ## Updating
 
 ```sh
@@ -184,3 +334,9 @@ sudo systemctl restart gloom-watch
 `clientsClaim`, so the phone picks up new code on its next visit. Do not put a caching proxy in
 front of the worker script: a cached worker pins the phone to old code permanently and nothing
 server-side can recover it.
+
+**Do not move the service worker's scope.** It is `/` and a push subscription keys to the scope,
+not merely to the origin — relocating the worker orphans every subscription taken under the old
+one, silently.
+
+**Do not regenerate the VAPID keypair as part of an update.** See step 4a.

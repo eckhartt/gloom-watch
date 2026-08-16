@@ -41,4 +41,24 @@ describe("configuration", () => {
 		expect(() => loadConfig({ PORT: "not-a-port" })).toThrow(/PORT/);
 		expect(() => loadConfig({ PORT: "70000" })).toThrow(/PORT/);
 	});
+
+	it("takes the public origin from the environment and keeps only its origin", () => {
+		// A notification's tap target is built from this, by a process that may have no HTTP
+		// request to read a Host header from.
+		expect(
+			loadConfig({ GLOOM_WATCH_ORIGIN: "https://htpc.tail594f35.ts.net/x" }).publicOrigin,
+		).toBe("https://htpc.tail594f35.ts.net");
+	});
+
+	it("falls back to the bound address, which the phone cannot reach", () => {
+		// Deliberately useless as a tap target, so the failure is loud rather than a notification
+		// that buzzes and opens nothing. `bun run push:test` refuses to send without the real one.
+		expect(loadConfig({}).publicOrigin).toBe("http://127.0.0.1:3000");
+	});
+
+	it("rejects an origin that is not an absolute URL", () => {
+		expect(() => loadConfig({ GLOOM_WATCH_ORIGIN: "htpc.tail594f35.ts.net" })).toThrow(
+			/GLOOM_WATCH_ORIGIN/,
+		);
+	});
 });
