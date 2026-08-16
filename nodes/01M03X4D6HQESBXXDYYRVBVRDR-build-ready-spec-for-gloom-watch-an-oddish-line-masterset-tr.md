@@ -72,9 +72,12 @@ These are starting points for the data-source research, not endorsements:
 - **How the phone authenticates to the home server.** Hangs on the hosting and
   ingress decision: a Tailscale-only origin and a public Cloudflare Tunnel imply
   completely different answers, and one of them may need no auth at all.
-- **Offline behaviour.** What the installed PWA can still do with no network —
-  browse the collection, view cached images, queue edits. Hangs on the stack
-  decision and on where images live.
+- **Offline *writes*.** Reading offline is settled — the shell is precached,
+  images cache CacheFirst, and a bulk warm exists. What is not settled is what
+  happens to a *write* made with no connection: marking a card owned, confirming
+  a match, editing a copy. The shell loads from cache even when the tailnet is
+  down, so the app is reachable while the API is not — which is exactly the
+  situation that needs an answer. Queue and replay, or refuse and tell the user?
 - **Marketplaces beyond eBay.** A masterset of the Oddish line is full of
   Japanese-only prints, which trade heavily on Yahoo Japan Auctions and Mercari
   JP. This looked essential when the map was charted; the eBay research has since
