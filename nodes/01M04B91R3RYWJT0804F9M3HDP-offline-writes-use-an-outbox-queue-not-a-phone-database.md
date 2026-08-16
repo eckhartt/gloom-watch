@@ -2,7 +2,7 @@
 id: 01M04B91R3RYWJT0804F9M3HDP
 type: decision
 title: Offline writes use an outbox queue, not a phone database
-status: proposed
+status: ruled
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 ---
 ## Resolution
