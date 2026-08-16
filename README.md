@@ -86,7 +86,14 @@ handset can settle — that an iPhone displays the notification, and that it arr
 off — is [`docs/deploy.md`](docs/deploy.md) steps 10 and 11. **Read the three-strike warning in
 step 10 before sending a push to a real device.**
 
-Nothing of the collection itself exists yet. The next slice pulls the masterset from TCGdex.
+**The corpus** is ingested. Pressing sync pulls the masterset from TCGdex and fills the
+database: **497 cards, 817 variants across 11 languages**, with 382 card images stored as webp
+BLOBs totalling 26 MiB. Re-syncing with nothing changed moves zero image bytes — the incremental
+path keys off TCGdex's own hash manifest. Card identity includes language, because en `base1-58`
+and fr `base1-58` are different cards; variant identity is `(card, variant_id)`, because all 817
+variants share only 21 distinct variant IDs and the worst is shared by 264 cards.
+
+Nobody can record a copy yet. The next slice is the binder — the visual grid of every variant.
 
 ## Licence
 
