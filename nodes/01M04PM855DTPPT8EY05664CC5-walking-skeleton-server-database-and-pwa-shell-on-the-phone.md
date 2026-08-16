@@ -13,6 +13,7 @@ edges:
     type: blocks
 meta:
   ticket: build
+  claimed: skeleton-agent
 ---
 ## What to build
 
