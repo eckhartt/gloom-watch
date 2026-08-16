@@ -4,6 +4,9 @@ type: decision
 title: The scanner backfills existing inventory once at commissioning
 status: proposed
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+edges:
+  - to: 01M03X9XFD2CCGM718GJ6D5MBP
+    type: relates
 ---
 ## Resolution
 
