@@ -2,7 +2,7 @@
 id: 01M03X9WY0D6AH6GYKG5V6K8VC
 type: decision
 title: Which source is canonical for the Oddish-line card corpus?
-status: deciding
+status: ruled
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M03XA78KZN54BHSM6G9ZBPTV
