@@ -15,7 +15,6 @@ bindings:
   branch: feat/walking-skeleton
 meta:
   ticket: build
-  claimed: skeleton-agent
 ---
 ## What to build
 
