@@ -11,6 +11,7 @@ edges:
     type: blocks
 meta:
   ticket: build
+  claimed: push-agent
 ---
 ## What to build
 
