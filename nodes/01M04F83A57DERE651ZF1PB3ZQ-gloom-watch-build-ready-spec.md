@@ -4,6 +4,9 @@ type: doc
 title: Gloom Watch — build-ready spec
 status: draft
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+edges:
+  - to: 01M04HM3VSFAHKSSBFFAJ18K66
+    type: relates
 ---
 ## Problem Statement
 
