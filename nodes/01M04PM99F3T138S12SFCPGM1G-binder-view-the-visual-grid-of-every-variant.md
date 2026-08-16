@@ -2,7 +2,7 @@
 id: 01M04PM99F3T138S12SFCPGM1G
 type: feature
 title: Binder view — the visual grid of every variant
-status: active
+status: done
 parent: 01M04PFVGGXDDF82HM2NY6J000
 edges:
   - to: 01M04P3SX9KAV082W044TGV9GD
