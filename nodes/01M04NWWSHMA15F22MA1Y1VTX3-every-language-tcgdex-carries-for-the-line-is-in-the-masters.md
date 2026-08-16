@@ -2,7 +2,7 @@
 id: 01M04NWWSHMA15F22MA1Y1VTX3
 type: decision
 title: Every language TCGdex carries for the line is in the masterset
-status: proposed
+status: ruled
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M03XA78KZN54BHSM6G9ZBPTV
