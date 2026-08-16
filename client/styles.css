@@ -1,0 +1,116 @@
+/*
+ * Dense, precise, typographic — not ornamental. One of the five rulings that survived the
+ * rejected prototypes, and the reason there is no card art or chrome on this screen.
+ */
+
+:root {
+	--ink: #e6efe9;
+	--ink-dim: #8ba396;
+	--ground: #0c1310;
+	--panel: #121c17;
+	--rule: #22322a;
+	--leaf: #86e08f;
+	--alarm: #ef8a7a;
+
+	color-scheme: dark;
+	font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+	font-size: 16px;
+	-webkit-text-size-adjust: 100%;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	background: var(--ground);
+	color: var(--ink);
+	/* Home Screen web apps run under the status bar; keep content clear of it. */
+	padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+		env(safe-area-inset-left);
+}
+
+main {
+	max-width: 42rem;
+	margin: 0 auto;
+	padding: 1.5rem 1.25rem 3rem;
+}
+
+h1 {
+	margin: 0;
+	font-size: 1.5rem;
+	letter-spacing: -0.02em;
+}
+
+h2 {
+	margin: 0 0 0.5rem;
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--ink-dim);
+}
+
+.subtitle {
+	margin: 0.35rem 0 0;
+	color: var(--ink-dim);
+	font-size: 0.8125rem;
+}
+
+header {
+	padding-bottom: 1.25rem;
+	border-bottom: 1px solid var(--rule);
+}
+
+section {
+	margin-top: 1.75rem;
+}
+
+dl {
+	margin: 0;
+	background: var(--panel);
+	border: 1px solid var(--rule);
+	border-radius: 6px;
+}
+
+.row {
+	display: flex;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.6rem 0.85rem;
+	border-bottom: 1px solid var(--rule);
+	font-size: 0.8125rem;
+}
+
+.row:last-child {
+	border-bottom: none;
+}
+
+dt {
+	color: var(--ink-dim);
+	white-space: nowrap;
+}
+
+dd {
+	margin: 0;
+	color: var(--leaf);
+	text-align: right;
+	overflow-wrap: anywhere;
+}
+
+.muted {
+	color: var(--ink-dim);
+	font-size: 0.8125rem;
+}
+
+.error {
+	color: var(--alarm);
+	font-size: 0.8125rem;
+}
+
+footer {
+	margin-top: 2rem;
+	padding-top: 1rem;
+	border-top: 1px solid var(--rule);
+}
