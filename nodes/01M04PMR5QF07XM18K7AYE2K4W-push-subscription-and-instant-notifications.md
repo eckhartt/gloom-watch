@@ -53,7 +53,7 @@ is the next ticket.
 
 ## Build record — branch `feat/push-transport`, not merged, not deployed
 
-`bun run verify` passes: Biome, TypeScript `strict`, **111 tests across 10 files** (was 22 across
+`bun run verify` passes: Biome, TypeScript `strict`, **112 tests across 10 files** (was 22 across
 4). Nothing was deployed to the box and the live service was not restarted.
 
 ### How each checked criterion was verified
@@ -148,7 +148,13 @@ change that satisfies both. systemd still reads it as root before dropping privi
   member list does not enumerate it and WebKit's own example writes it as the string `"1"` rather
   than the number the Badging API takes. The badge is a later ticket; it belongs to whoever can
   check it against a handset.
-- **Transport detection reads `navigate` on `Notification.prototype`.** Neither specification
-  defines a capability flag. This is an inference, and it is wrong in the safe direction.
+- **Transport detection probes `"navigate" in Notification.prototype`.** Neither specification
+  defines a capability flag, so this is a proxy — checked, not assumed. MDN gives
+  `api.Notification.navigate` as Safari 18.4, mirrored on Safari iOS, `false` on Chrome and
+  Firefox; WebKit shipped Declarative Web Push on iOS and iPadOS 18.4. Same version, same
+  platforms. It discriminates rather than defaults, and desktop Chrome answering `classic` is
+  the correct answer rather than a fallback. It has never run on an iPhone, and a wrong answer
+  there would be invisible — both transports deliver — so `docs/deploy.md` step 10 makes the
+  Transport row a **stop condition**: 18.4 or later must read `declarative`.
 - **`GLOOM_WATCH_ORIGIN` is new configuration.** A notification's tap target is absolute and
   same-origin, and the process building it may be a cron job with no `Host` header to read.
