@@ -4,6 +4,9 @@ type: decision
 title: Condition ladder is retained, but the eBay-vocabulary claim is withdrawn
 status: proposed
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+edges:
+  - to: 01M03XA7TY3EEWANSAG7KZSS3Y
+    type: supersedes
 ---
 ## Resolution
 
