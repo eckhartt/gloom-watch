@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client", "vite-plugin-pwa/client"],
+    "outDir": "dist/types/client",
+    "rootDir": "."
+  },
+  "include": ["client/**/*.ts", "client/**/*.tsx", "shared/**/*.ts"],
+  "exclude": ["client/sw.ts"]
+}

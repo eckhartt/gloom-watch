@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "WebWorker"],
+    "types": [],
+    "outDir": "dist/types/sw",
+    "rootDir": "."
+  },
+  "include": ["client/sw.ts"]
+}

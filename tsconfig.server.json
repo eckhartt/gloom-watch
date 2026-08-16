@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "types": ["bun"],
+    "outDir": "dist/types/server",
+    "rootDir": "."
+  },
+  "include": [
+    "server/**/*.ts",
+    "shared/**/*.ts",
+    "tests/**/*.ts",
+    "scripts/**/*.ts",
+    "drizzle.config.ts",
+    "vite.config.ts",
+    "vitest.config.ts"
+  ]
+}
