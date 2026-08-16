@@ -9,74 +9,153 @@ meta:
   hitl: yes
   claimed: interview-session
 ---
-## The question
+## Resolution
 
-How is the irreplaceable half of this system backed up, exported and restored?
+**Everything lives in one SQLite file, and one job backs it up.**
 
-This was fog on the map until the collection model resolved. It is specifiable
-now because we know exactly what is irreplaceable and what is not.
+## What is backed up
 
-## What is at stake
+**The whole database, including all image BLOBs** — corpus images and owner
+photographs alike. See the superseding decision on image storage; there is no
+filesystem side to keep in sync.
 
-**Re-derivable, and therefore cheap to lose:**
+**Blanket coverage was chosen deliberately over excluding the re-derivable
+corpus images.** The original plan excluded them to save ~21 MB. That was
+optimising the wrong thing: if TCGdex disappears, changes its URL scheme, or the
+licensing grey area ever forces the issue, **the backup becomes the only copy of
+those images**. 21 MB is not worth that exposure.
 
-- the card corpus — a fresh TCGdex pull rebuilds it
-- corpus images — re-downloadable, ~20 MB as webp
-- observed eBay listings — and eBay's licence only permits keeping them as
-  *"intermediate copies... deleted when no longer required"* anyway
+## Mechanism
 
-**Irreplaceable, and gone forever if lost:**
+**`VACUUM INTO`.** `bun:sqlite` has no `backup()` — only `.serialize()`, which
+materialises the entire database in memory. `VACUUM INTO` is the correct online
+primitive for a live WAL database, is safe against concurrent readers, and
+produces a defragmented copy. Verified working (118 KB in 1 ms on a small file).
 
-- every **copy** record — condition, grader, grade, cert number, price paid,
-  currency, the **home-currency snapshot whose historical rate cannot be
-  recovered**, acquisition date, source, notes
-- **owner photographs** of individual cards, which for most pre-2021 Japanese
-  variants are the only image that will ever exist
+At ~125 MB the operation is closer to a second than a millisecond, which matters
+for the write-triggered path below.
+
+## Cadence and retention
+
+- **Daily**, scheduled via `Bun.cron`.
+- **Plus a debounced snapshot after any collection write** — adding a copy,
+  confirming a match, adding a manual variant. **The debounce must be real** (a
+  minutes-scale window, not per-keystroke), because a snapshot is no longer free
+  once image blobs are inside the file.
+- **Retention: 90 days**, deliberately matching the listing retention window, so
+  **eBay payloads never persist in a backup longer than they persist live.** That
+  keeps the "intermediate copies... deleted when no longer required" posture
+  intact without needing a second backup job.
+
+The write trigger exists because collection edits are the one thing here that
+cannot be rebuilt. A daily-only schedule can lose an afternoon of cataloguing.
+
+## Destination
+
+**Encrypted, to cloud object storage *and* a local copy.**
+
+- **Local** (second disk or NAS share) — fast routine restores, no egress.
+- **Cloud** (B2, R2 or similar) — survives fire, theft and flood.
+
+Content-defined dedup (restic or equivalent) keeps repeated 125 MB snapshots
+cheap, because the overwhelming majority of blobs are unchanged between them.
+
+## Key custody — the bootstrap trap
+
+**An `age` keypair, with the private key held off the box**: password manager,
+plus an offline copy.
+
+The server holds **only the public key**, so it can write backups it cannot
+itself read. That is the correct property for an append-only backup target
+anyway, and it avoids the classic failure:
+
+> the only copy of the decryption key lives on the machine that died, leaving a
+> perfect encrypted backup that can never be opened.
+
+The backup contains the **VAPID private key** and **eBay credentials**, so it is
+genuinely sensitive.
+
+## Export — CSV and JSON, archived forever
+
+Generated and archived **with every backup**, and **kept indefinitely**.
+
+This is what makes a 90-day snapshot retention safe. The snapshot expires; the
+export does not. It contains **only the owner's data** — no eBay payloads — so
+indefinite retention carries no licence tension.
+
+Contents: one row per copy (card, set, number, language, variant, condition,
+grader, grade, cert, price, currency, acquired, source, status, notes), plus
+manual variants, aliases, match confirmations and priorities.
+
+### The export must be re-importable
+
+**Recorded as a requirement on the format, not a nice property.** If the only
+artifact older than 90 days is a CSV that cannot be loaded back, it is
+documentation, not a backup.
+
+Restoring from export must be a supported path: rebuild the schema, re-ingest the
+corpus from TCGdex, re-download corpus images, and reconstruct copies, manual
+variants, aliases, confirmations and priorities from the export file.
+
+It is also the answer to *"what if this app stops working in five years"* — and
+the migration path to any other tracker.
+
+## Verification — after every backup
+
+An untested backup is a belief.
+
+1. Open the snapshot **read-only**
+2. `PRAGMA integrity_check`
+3. Compare row counts against live — copies, variants, aliases, confirmations
+4. Confirm image blob counts and total blob bytes
+5. Record `verified_at` and the counts
+
+**Surfaced in-app beside the scanner staleness banner**: *"backup verified 6h
+ago, 312 copies"*.
+
+This catches the failures that otherwise stay silent: a truncated snapshot, a
+disk that filled up three weeks ago, or a backup that is valid SQLite but missing
+data.
+
+## What is irreplaceable, and what is not
+
+**Irreplaceable — the reason this ticket exists:**
+
+- every **copy** record, including the **home-currency snapshot whose historical
+  rate cannot be recovered**
+- **owner photographs** — for most pre-2021 Japanese variants, the only image
+  that will ever exist
 - **manually added variants** — Korean, Simplified Chinese, "The Best of XY" —
-  which have no upstream source at all
-- **priority flags** on variants
-- **the matcher alias table and the owner's match confirmations** — hand-curated
-  over months of using the confirm queue, with no upstream source. Losing them
-  does not just lose data: it resets the matcher's accuracy to day one and
-  re-floods the queue with questions already answered once.
+  with no upstream source
+- **the alias table and match confirmations**, hand-curated over months. Losing
+  them resets matcher accuracy to day one and re-floods the confirm queue with
+  questions already answered
+- **priority flags**
+- **the VAPID keypair** — rotating it invalidates every push subscription
 
-## What to decide
+**Re-derivable:** corpus rows and corpus images (backed up anyway, per above) and
+observed listings.
 
-- **What is actually backed up.** The whole SQLite file, or only the
-  irreplaceable tables? A full-file backup is simpler and self-consistent; a
-  selective one is far smaller and sidesteps the eBay retention clause entirely.
-- **The mechanism.** `VACUUM INTO` is the correct online primitive for a live WAL
-  database and yields a defragmented copy — but confirm it against whichever
-  SQLite driver the stack decision picked, since `better-sqlite3` also offers a
-  real incremental `backup()`.
-- **Photographs.** They are blobs, not rows. Decide whether they live in the
-  database (and so ride along in any DB backup) or on the filesystem (and so need
-  their own sync). This choice is the difference between one backup job and two.
-- **Where backups go.** Another disk on the same machine is not a backup. An
-  off-machine or off-site target is the point — and the hosting decision
-  determines what the box can reach.
-- **Cadence and retention.** How often, how many kept, and whether a backup runs
-  after a write or on a schedule.
-- **Export in an open format.** Whether the owner can get their collection out as
-  CSV or JSON without the app — insurance against the project being abandoned,
-  and the only real answer to "what if this thing stops working in five years".
-- **Restore, actually tested.** An untested backup is a belief, not a backup.
-  Decide what proves a restore works and how often that is exercised.
-- **Secrets.** The **VAPID keypair must be backed up and never rotated** —
-  rotating it destroys every push subscription and costs a user tap to recover.
-  eBay credentials are re-issuable and matter less.
+## Alternatives weighed and rejected
 
-## Why it matters
-
-Every other failure on this map is recoverable by re-running something. This one
-is not. A lost `copies` table means re-photographing and re-typing a collection
-from memory, including purchase prices that were only ever recorded here.
-
-## How to resolve
-
-Largely a technical decision the agent can drive, but the cadence, the off-site
-target and whether open-format export is in v1 are the owner's calls. Bring a
-concrete proposal rather than a menu.
-
-Resolve into: what is backed up, by what mechanism, to where, how often, how it
-is restored, and how the restore is proven.
+- **Two-tier backup** (short-retention full snapshot + long-retention
+  collection-only export as separate jobs) — the same outcome is achieved by the
+  archived export, without a second job.
+- **Irreplaceable tables only** — smallest and cleanest on licensing, but a
+  restore cannot produce a working app without re-ingesting first.
+- **Indefinite snapshot retention** — archives eBay listing payloads years past
+  their purpose.
+- **Weekly or daily-only cadence** — risks losing collection edits, the one thing
+  that cannot be rebuilt.
+- **Another tailnet machine as the only destination** — no cost and no third
+  party, but everything remains in one building.
+- **Cloud only** — every restore is a download, including routine ones.
+- **External USB drive** — immune to remote compromise, dependent on remembering
+  to plug it in.
+- **Passphrase-based symmetric encryption** — simpler, but the box then holds a
+  secret that decrypts every backup it ever wrote.
+- **Key file replicated to the local target only** — survives one machine dying,
+  not the house.
+- **Manual restore drills** — no code, but depends on remembering.
+- **Integrity check without row comparison** — catches corruption, misses a
+  backup that is valid SQLite and missing data.
