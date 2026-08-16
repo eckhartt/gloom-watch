@@ -14,9 +14,42 @@
  */
 
 import type { QueryClient } from "@tanstack/react-query";
+import type { BinderDocument } from "../shared/contract.ts";
+import { fetchBinder } from "./api.ts";
 
 /** The whole masterset with its ownership state. Its ETag changes when a copy is recorded. */
 export const BINDER_QUERY_KEY = ["binder"] as const;
+
+/**
+ * How the binder document is fetched, in one place, because **two screens want it and one of
+ * them has to work with no connection.**
+ *
+ * `networkMode: "offlineFirst"` is the load-bearing option and it is not a preference.
+ * TanStack Query's default mode is `"online"`, which **does not run the query function at all**
+ * while the client believes it is offline — and the client believes that the moment the browser
+ * fires an `offline` event, which aeroplane mode does. The request would never be made, the
+ * service worker would never be asked, and the binder the phone is holding in its cache would
+ * sit there behind a spinner. `"offlineFirst"` runs the fetch once regardless and only *then*
+ * pauses retries, which is exactly the shape a `NetworkFirst` service-worker cache needs: the
+ * fetch is answered from the cache and the grid renders with the tailnet unreachable.
+ *
+ * `staleTime` is a minute because the masterset changes only when the owner presses sync or
+ * records a copy, and both of those invalidate this key by hand. Polling a ~290 KB document on a
+ * timer would burn battery to learn nothing.
+ */
+export function binderQueryOptions(): {
+	queryKey: typeof BINDER_QUERY_KEY;
+	queryFn: (context: { signal: AbortSignal }) => Promise<BinderDocument>;
+	staleTime: number;
+	networkMode: "offlineFirst";
+} {
+	return {
+		queryKey: BINDER_QUERY_KEY,
+		queryFn: ({ signal }) => fetchBinder(signal),
+		staleTime: 60_000,
+		networkMode: "offlineFirst",
+	};
+}
 
 /** The numerator and the denominator. Both of them move, and not always in the same direction. */
 export const COMPLETION_QUERY_KEY = ["completion"] as const;

@@ -1,11 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BinderEntry } from "../../shared/contract.ts";
 import { corpusCardImagePath } from "../../shared/contract.ts";
-import { fetchBinder } from "../api.ts";
 import { CopiesPanel } from "../binder/copies-panel.tsx";
+import { FilterSheet } from "../binder/filter-sheet.tsx";
+import type { BinderFilters, FilterAxis } from "../binder/filters.ts";
+import {
+	activeFilterCount,
+	filterEntries,
+	filterFacets,
+	filtersFromSearch,
+	NO_FILTERS,
+	searchFromFilters,
+	setFilterAxis,
+	toggleFilterValue,
+} from "../binder/filters.ts";
 import {
 	axisRows,
 	cellPresentation,
@@ -13,27 +24,32 @@ import {
 	setLine,
 	variantBadge,
 } from "../binder/presentation.ts";
-import { BINDER_QUERY_KEY } from "../collection.ts";
+import { binderQueryOptions } from "../collection.ts";
 
 /**
  * The binder — the app's primary surface, and the screen the whole design is built around.
  *
- * Three properties are load-bearing and each is visible in the code below:
+ * Four properties are load-bearing and each is visible in the code below:
  *
  * **One document.** The whole masterset arrives in a single request and lives in one query. It
  * is never paged and never re-fetched per cell, which is what lets the service worker hold the
- * binder for offline browsing and what will let the next-but-one ticket filter it client-side.
+ * binder for offline browsing and what lets the filters run without a round trip.
+ *
+ * **Filtering is local.** The predicate runs over the entries already in memory. Nothing here
+ * fetches when a chip is tapped; `GET /api/binder` takes no parameters and never will, because
+ * the service worker caches by URL and a URL that varied by filter would leave the phone holding
+ * one arbitrary slice of the masterset. **The Gap is a filter, not a screen** — "what I still
+ * need" is a selection on this route, so the owner never loses the binder to look at their holes.
  *
  * **Virtualised.** ~765 cells is more than a phone will paint at sixty frames a second. Only the
  * rows in view exist in the DOM; the rest are height. The virtualiser works in *rows* rather
  * than cells — one measurement axis instead of two, and the column count is a pure function of
  * the container's width, so a rotation re-lays-out without a second virtualiser to keep in sync.
  *
- * **The sheet is not a route.** Tapping a card sets a piece of component state. The grid is not
- * unmounted, the URL does not move, no navigation happens — so dismissing the sheet returns to
- * the same scroll offset because the scroll container was never touched. Making it a route would
- * mean re-mounting the scroller and losing the position, which is exactly the thing the spec
- * says the binder must not do.
+ * **Neither sheet is a route.** Tapping a card, or opening the filters, sets a piece of component
+ * state. The grid is not unmounted, no navigation happens — so dismissing a sheet returns to the
+ * same scroll offset because the scroll container was never touched. The filters *do* move the
+ * URL, but only its search parameters, which does not re-mount this component.
  */
 
 /** The narrowest a card tile may be before another column is dropped. */
@@ -201,16 +217,44 @@ function Fact({ label, value, tone }: { label: string; value: string; tone?: "al
 }
 
 export function BinderScreen() {
-	const binder = useQuery({
-		queryKey: BINDER_QUERY_KEY,
-		queryFn: ({ signal }) => fetchBinder(signal),
-		// The corpus changes only when the owner presses sync, and copies only when the owner
-		// records one. Polling a 200 KB document on a timer would burn battery to learn nothing.
-		staleTime: 60_000,
-	});
+	const binder = useQuery(binderQueryOptions());
+
+	// **The filter state is the URL.** There is no `useState` mirroring it: a copy would be the
+	// thing that disagrees after a reload, and surviving a reload is the criterion.
+	const search = useSearch({ from: "/" });
+	const navigate = useNavigate({ from: "/" });
+	const filters = useMemo(() => filtersFromSearch(search), [search]);
+
+	const applyFilters = useCallback(
+		(next: BinderFilters) => {
+			// `replace` rather than a push. A chip is not navigation, and on a Home Screen web app
+			// the edge swipe is the only back gesture there is — twenty filter states in the history
+			// stack would make it useless for leaving the binder, which is the only thing it is for.
+			void navigate({ search: searchFromFilters(next), replace: true });
+		},
+		[navigate],
+	);
+
+	const onToggleFilter = useCallback(
+		(axis: FilterAxis, value: string) => applyFilters(toggleFilterValue(filters, axis, value)),
+		[applyFilters, filters],
+	);
+	const onClearFilters = useCallback(() => applyFilters(NO_FILTERS), [applyFilters]);
 
 	const entries = binder.data?.entries ?? NO_ENTRIES;
+	// Memoised on the document and the selection, so a filter that has not changed does not walk
+	// 817 entries because something else re-rendered.
+	const visible = useMemo(() => filterEntries(entries, filters), [entries, filters]);
+	const facets = useMemo(() => filterFacets(entries), [entries]);
+	const activeFilters = activeFilterCount(filters);
+	const neededOnly = filters.state.length === 1 && filters.state[0] === "needed";
+
+	const [filtersOpen, setFiltersOpen] = useState(false);
+	const closeFilters = useCallback(() => setFiltersOpen(false), []);
+
 	const [selectedKey, setSelectedKey] = useState<string | null>(null);
+	// Looked up in the whole document rather than the visible slice, so a sheet already open does
+	// not vanish because the entry behind it stopped matching.
 	const selected = useMemo(
 		() => entries.find((entry) => entry.key === selectedKey) ?? null,
 		[entries, selectedKey],
@@ -229,7 +273,7 @@ export function BinderScreen() {
 	}, []);
 
 	const metrics = useMemo(() => gridMetrics(width), [width]);
-	const rowCount = Math.ceil(entries.length / metrics.columns);
+	const rowCount = Math.ceil(visible.length / metrics.columns);
 
 	const virtualizer = useVirtualizer({
 		count: rowCount,
@@ -249,11 +293,36 @@ export function BinderScreen() {
 		virtualizer.measure();
 	}, [virtualizer, width]);
 
+	// A filter changes how many rows there are, and the scroller does not know that. Left alone,
+	// narrowing 817 entries to 12 while scrolled 5,000px down leaves the owner staring at empty
+	// canvas below the end of their own result. Back to the top, then discard the measurement
+	// cache — the same fix rotation needed, for the same reason: the row count is not in the
+	// virtualiser's memo key.
+	//
+	// Keyed on the *serialised* selection rather than the object, so this does not fire when the
+	// sheet opens or the document refetches — dismissing a sheet must still return to the same
+	// scroll offset, which is a criterion of the ticket this one builds on. And compared against
+	// the last one applied rather than run on every mount: arriving on a bookmarked filtered URL
+	// is not a filter *change*, and the scroller is already at the top there anyway.
+	const filterKey = useMemo(() => JSON.stringify(searchFromFilters(filters)), [filters]);
+	const appliedFilterKey = useRef(filterKey);
+	useEffect(() => {
+		if (appliedFilterKey.current === filterKey) return;
+		appliedFilterKey.current = filterKey;
+
+		const element = scrollRef.current;
+		if (element === null) return;
+		element.scrollTop = 0;
+		virtualizer.measure();
+	}, [filterKey, virtualizer]);
+
 	return (
 		<main className="binder">
 			{/* Deliberately carries no counts, no percentage and no density map. The ticket rules
 			    out an aggregate summary above the grid, and the spec rules out the density map
-			    outright — the grid itself is how the collection is read. */}
+			    outright — the grid itself is how the collection is read. That rule is why the
+			    filter row below says how many *axes* are narrowing the grid and never how many
+			    cards came back: a count of needed cards is the completion figure in disguise. */}
 			<div className="binder-bar">
 				<span className="binder-wordmark">Gloom Watch</span>
 				<Link to="/status" className="binder-link">
@@ -261,8 +330,45 @@ export function BinderScreen() {
 				</Link>
 			</div>
 
+			<div className="binder-filter-bar">
+				{/* The Gap, one tap from the grid. It is the filter the whole screen exists to make
+				    reachable, and burying it two taps deep inside the sheet would make "what I still
+				    need" feel like a screen again. */}
+				<button
+					type="button"
+					aria-pressed={neededOnly}
+					className={neededOnly ? "filter-chip filter-chip-on" : "filter-chip"}
+					onClick={() =>
+						applyFilters(setFilterAxis(filters, "state", neededOnly ? [] : ["needed"]))
+					}
+				>
+					needed
+				</button>
+				<button
+					type="button"
+					className="filter-chip"
+					aria-expanded={filtersOpen}
+					onClick={() => setFiltersOpen(true)}
+				>
+					filters{activeFilters > 0 ? ` · ${activeFilters}` : ""}
+				</button>
+				{activeFilters > 0 ? (
+					<button type="button" className="filter-chip" onClick={onClearFilters}>
+						clear
+					</button>
+				) : null}
+			</div>
+
 			<div className="binder-scroll" ref={scrollRef}>
-				{binder.isPending ? <p className="binder-note muted">Reading the masterset…</p> : null}
+				{binder.isPending ? (
+					<p className="binder-note muted">
+						{/* `fetchStatus` is "paused" when the client believes there is no connection and
+						    the service worker had nothing cached. "Reading…" forever would be a lie. */}
+						{binder.fetchStatus === "paused"
+							? "No connection, and no cached copy of the masterset on this device yet."
+							: "Reading the masterset…"}
+					</p>
+				) : null}
 				{binder.isError ? (
 					<p className="binder-note error">
 						The server did not answer: {(binder.error as Error).message}
@@ -272,6 +378,15 @@ export function BinderScreen() {
 					<p className="binder-note muted">
 						The masterset is empty. Sync the corpus from the <Link to="/status">status</Link>{" "}
 						screen.
+					</p>
+				) : null}
+				{entries.length > 0 && visible.length === 0 ? (
+					<p className="binder-note muted">
+						Nothing in the masterset matches these filters.{" "}
+						<button type="button" className="linkish" onClick={onClearFilters}>
+							Clear them
+						</button>
+						.
 					</p>
 				) : null}
 
@@ -284,7 +399,7 @@ export function BinderScreen() {
 								className="binder-row"
 								style={{ height: row.size, transform: `translateY(${row.start}px)` }}
 							>
-								{entries.slice(start, start + metrics.columns).map((entry) => (
+								{visible.slice(start, start + metrics.columns).map((entry) => (
 									// **Keyed on the composed `(card_key, variant_id)`, never on `variantId`.**
 									// 264 different cards share one `variantId` in the live corpus; keyed on it
 									// alone React would render 21 cells and drop 796 without an error anywhere.
@@ -300,6 +415,16 @@ export function BinderScreen() {
 					})}
 				</div>
 			</div>
+
+			{filtersOpen ? (
+				<FilterSheet
+					facets={facets}
+					filters={filters}
+					onToggle={onToggleFilter}
+					onClear={onClearFilters}
+					onClose={closeFilters}
+				/>
+			) : null}
 
 			{selected === null ? null : <BinderSheet entry={selected} onClose={closeSheet} />}
 		</main>

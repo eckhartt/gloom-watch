@@ -126,6 +126,29 @@ The condition ladder is `NM / LP / MP / HP / DMG`, which is the hobby's. **It is
 this repository contains no mapping between them** — eBay's Card Condition has four values and no
 rung for a damaged card.
 
+**Filters** narrow the binder over eight axes — finish, subtype, stamps, foil, set, language,
+owned/needed and priority. `size` is stored and deliberately not among them. **Several values on
+one axis show any of them; different axes must all match**, so a second finish widens the result
+and a second language narrows it. **What you still need is one of these filters, never a screen**:
+the owner never loses the binder to look at their holes.
+
+The selection lives in **typed URL search parameters**, so a filtered view survives a reload and
+can be bookmarked. A malformed or stale URL falls back rather than throwing — `?priority=7` is off
+the 0–3 scale and is dropped, `?set=gone-in-2019` is merely stale and is kept so it still says
+what was asked for, and `?finish=holo` typed by hand is read as the one-value selection it
+obviously is.
+
+**Filtering runs client-side over the cached document — no request per change.** That is what
+makes it work with no connection: the service worker holds `/api/binder` (`NetworkFirst`) and the
+card images (`CacheFirst`), and the predicate runs over ~817 entries already in memory in about
+0.05 ms. `GET /api/binder` still takes no parameters and never will, because the service worker
+caches by URL and a URL that varied by filter would leave the phone holding one arbitrary slice of
+the masterset.
+
+**The image cache is warmed on demand**, from `/status`, before a card fair or a flight — never
+automatically, because it moves ~380 images and ~26 MiB over the tailnet. Progress is visible and
+it can be stopped. A repeat run costs nothing: an image already cached is not requested at all.
+
 ## Licence
 
 Card data comes from TCGdex under the MIT licence. This repository carries no card

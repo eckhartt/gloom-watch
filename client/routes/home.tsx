@@ -6,6 +6,7 @@ import { COMPLETION_QUERY_KEY } from "../collection.ts";
 import { NotificationSection } from "../notifications.tsx";
 import { serviceWorkerScope } from "../pwa.ts";
 import { CorpusPanel } from "./corpus.tsx";
+import { OfflineImagesPanel } from "./offline-images.tsx";
 
 /**
  * The status screen, at `/status`.
@@ -155,6 +156,8 @@ export function HomeScreen() {
 			<CorpusPanel
 				formatInstant={(value) => formatInstant(value, health.data?.timezone ?? "UTC")}
 			/>
+
+			<OfflineImagesPanel />
 
 			<section>
 				<h2>On this device</h2>

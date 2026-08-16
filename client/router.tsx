@@ -1,4 +1,5 @@
 import { createRootRoute, createRoute, createRouter, Outlet } from "@tanstack/react-router";
+import { parseBinderSearch } from "./binder/filters.ts";
 import { BinderScreen } from "./routes/binder.tsx";
 import { HomeScreen } from "./routes/home.tsx";
 
@@ -12,9 +13,11 @@ import { HomeScreen } from "./routes/home.tsx";
  * corpus sync and the notification controls moved to `/status`, which is where an owner goes to
  * find out why something is wrong rather than to look at cards.
  *
- * There are two routes and the variant sheet is neither of them. Tapping a card must not
- * navigate — the binder stays as context and the scroll position with it — so the sheet is
- * component state, not a route.
+ * There are **still two routes**, and neither the variant sheet nor the filters is one of them.
+ * Tapping a card must not navigate — the binder stays as context and the scroll position with
+ * it — so the sheet is component state. And **the Gap is a filter, not a screen**: "what I still
+ * need" is a selection on `/`, never a page of its own, so the owner never loses the binder to
+ * look at their holes.
  */
 
 const rootRoute = createRootRoute({
@@ -25,6 +28,15 @@ const indexRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/",
 	component: BinderScreen,
+	/**
+	 * The binder's filter state, typed, so a filtered view survives a reload and can be returned
+	 * to.
+	 *
+	 * `parseBinderSearch` is **total** — every input has an answer and none of them is a throw.
+	 * A `validateSearch` that threw would take the binder down for a URL somebody hand-edited or
+	 * bookmarked three months ago, which is precisely the URL this route has to survive.
+	 */
+	validateSearch: parseBinderSearch,
 });
 
 const statusRoute = createRoute({

@@ -8,5 +8,6 @@
     "rootDir": "."
   },
   "include": ["client/**/*.ts", "client/**/*.tsx", "shared/**/*.ts", "tests/client/**/*.ts"],
-  "exclude": ["client/sw.ts", "client/sw/**/*.ts"]
+  "//": "client/sw/caching.ts is deliberately not excluded. The page imports the image cache's name from it, so a warmed image and a browsed one are one cache entry rather than two copies; a composite project must list every file it compiles. The worker's entry point and its push handler stay out — they need the WebWorker lib, not the DOM one.",
+  "exclude": ["client/sw.ts", "client/sw/push-handler.ts"]
 }
