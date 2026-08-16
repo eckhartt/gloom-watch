@@ -7,6 +7,8 @@ parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M04F83A57DERE651ZF1PB3ZQ
     type: supersedes
+  - to: 01M04HM3VSFAHKSSBFFAJ18K66
+    type: relates
 ---
 **Revision 2.** Supersedes the first draft, which a three-reader adversarial review found
 **not build-ready** and a fact-check found to rest on several false external claims.
