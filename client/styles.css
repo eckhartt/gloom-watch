@@ -165,6 +165,41 @@ code {
 	font-size: 0.8125rem;
 }
 
+dd.alarm {
+	color: var(--alarm);
+}
+
+.actions {
+	margin-top: 0.75rem;
+	display: flex;
+	align-items: baseline;
+	gap: 0.75rem;
+	flex-wrap: wrap;
+}
+
+.actions p {
+	margin: 0;
+}
+
+button {
+	font: inherit;
+	font-size: 0.8125rem;
+	color: var(--ground);
+	background: var(--leaf);
+	border: 1px solid var(--leaf);
+	border-radius: 6px;
+	/* Past the 44px iOS touch target once padding and line height are counted. */
+	padding: 0.55rem 1rem;
+	cursor: pointer;
+}
+
+button:disabled {
+	color: var(--ink-dim);
+	background: transparent;
+	border-color: var(--rule);
+	cursor: default;
+}
+
 footer {
 	margin-top: 2rem;
 	padding-top: 1rem;

@@ -4,6 +4,9 @@ import { logger } from "hono/logger";
 import type { HealthDocument } from "../shared/contract.ts";
 import { HEALTH_PATH } from "../shared/contract.ts";
 import { PUSH_BASE_PATH } from "../shared/push.ts";
+import { type CorpusSyncStarter, createCorpusRoutes } from "./corpus/http.ts";
+import { countVariants, readLastSuccessfulSyncAt } from "./corpus/repository.ts";
+import { defaultCorpusSyncStarter } from "./corpus/runner.ts";
 import { APP_STATE_KEYS, readAppState, readAppStateNumber } from "./db/app-state.ts";
 import type { DatabaseHandle } from "./db/client.ts";
 import { countAppliedMigrations } from "./db/migrate.ts";
@@ -19,6 +22,11 @@ export interface AppDependencies {
 	readonly requestLog?: boolean;
 	/** Injected so a test can supply a VAPID environment without touching `process.env`. */
 	readonly env?: Record<string, string | undefined>;
+	/**
+	 * How a created sync job gets worked on. Defaults to the real TCGdex runner; a test supplies
+	 * its own so the HTTP layer can be exercised without the network.
+	 */
+	readonly startCorpusSync?: CorpusSyncStarter;
 }
 
 /**
@@ -48,6 +56,8 @@ export function createApp(deps: AppDependencies): Hono {
 			installedAt: readAppStateNumber(db, APP_STATE_KEYS.installedAt),
 			lastHeartbeatAt: readAppStateNumber(db, APP_STATE_KEYS.lastHeartbeatAt),
 			migrationsApplied: countAppliedMigrations(deps.handle),
+			corpusLastSyncedAt: readLastSuccessfulSyncAt(db),
+			corpusVariantCount: countVariants(db),
 			serverTimeMs: now(),
 		};
 		// The binder document will be cacheable; health never is.
@@ -62,6 +72,15 @@ export function createApp(deps: AppDependencies): Hono {
 			handle: deps.handle,
 			now,
 			...(deps.env === undefined ? {} : { env: deps.env }),
+		}),
+	);
+
+	app.route(
+		"/",
+		createCorpusRoutes({
+			db: deps.handle.db,
+			now,
+			startCorpusSync: deps.startCorpusSync ?? defaultCorpusSyncStarter(deps.handle.db),
 		}),
 	);
 

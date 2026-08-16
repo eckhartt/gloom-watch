@@ -3,13 +3,14 @@ import { useEffect, useState } from "react";
 import { fetchHealth } from "../api.ts";
 import { NotificationSection } from "../notifications.tsx";
 import { serviceWorkerScope } from "../pwa.ts";
+import { CorpusPanel } from "./corpus.tsx";
 
 /**
  * The Home Screen.
  *
- * Everything in the first block is read out of SQLite by the server and rendered here — that
- * round trip, on the phone, is what this ticket exists to prove. The binder view replaces this
- * screen in a later ticket.
+ * Everything in the first block is read out of SQLite by the server and rendered here. The
+ * masterset panel below it is the corpus surface: press sync, watch the job, read the variant
+ * count and the last-synced time. The binder view replaces this screen in a later ticket.
  */
 
 function formatInstant(value: number | null, timezone: string): string {
@@ -90,6 +91,10 @@ export function HomeScreen() {
 				) : null}
 			</section>
 
+			<CorpusPanel
+				formatInstant={(value) => formatInstant(value, health.data?.timezone ?? "UTC")}
+			/>
+
 			<section>
 				<h2>On this device</h2>
 				<dl>
@@ -101,7 +106,8 @@ export function HomeScreen() {
 
 			<footer>
 				<p className="muted">
-					Walking skeleton. The values above travelled from SQLite, through Hono, to this screen.
+					The values above travelled from SQLite, through Hono, to this screen. The masterset is
+					pulled from TCGdex on demand; the corpus never refreshes itself.
 				</p>
 			</footer>
 		</main>
