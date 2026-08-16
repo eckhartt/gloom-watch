@@ -11,7 +11,6 @@ bindings:
   branch: feat/filters-offline
 meta:
   ticket: build
-  claimed: filters-agent
 ---
 ## What to build
 
