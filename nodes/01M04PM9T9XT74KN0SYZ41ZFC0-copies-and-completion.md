@@ -19,7 +19,6 @@ bindings:
   branch: feat/copies-completion
 meta:
   ticket: build
-  claimed: copies-agent
 ---
 ## What to build
 
