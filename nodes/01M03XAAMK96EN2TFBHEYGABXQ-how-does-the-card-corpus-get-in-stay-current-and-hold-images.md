@@ -2,7 +2,7 @@
 id: 01M03XAAMK96EN2TFBHEYGABXQ
 type: decision
 title: How does the card corpus get in, stay current, and hold images?
-status: deciding
+status: ruled
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 meta:
   ticket: grilling
