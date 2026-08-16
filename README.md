@@ -102,8 +102,29 @@ position. Default order is set release date descending, then card number — whi
 corpus sync grew a **sets phase**: no TCGdex endpoint but `/v2/{lang}/sets/{setId}` carries a
 release date, so it is fetched once per set and never asked for again.
 
-Nobody can record a copy yet, so every cell in the binder currently reads as *needed*. The owned
-treatment is built and tested; the copies table is the next slice.
+**Copies** are recorded. A copy is **one physical card** pointing at one variant — a PSA 9 and a
+raw copy of the same printing are two rows, never a count of two — carrying its condition or its
+grade, a cert number, what was paid in the currency it was paid in, a home-currency value with the
+date its rate was taken, where it came from and a free-text note. Money is integer minor units
+paired with an ISO 4217 code, so ¥4,200 is `4200` and not `420000`; a grade is integer tenths, so
+`PSA 8.5` is `85`. Adding, editing and disposing all happen in the binder's bottom sheet, which
+stays component state rather than becoming a route.
+
+**Disposal retains the row** — there is no route in this application that deletes a copy — which is
+why every ownership query filters `status = 'owned'`. That rule is held by a test watching the
+statements the application actually issues, rather than by a list of the queries somebody
+remembered, so a new query that forgets it fails the first time its code path runs.
+
+**Completion** is the count of variants with at least one owned copy, over every variant except
+those flagged `missing_upstream` that the owner does not hold. It is computed from the database on
+every read and never cached server-side, because the corpus sync that moves the denominator runs
+in a different OS process. Expect it to go *down* after a sync that finds a new language — the
+target got bigger. How it is presented numerically is still open in the spec, so `/status` shows
+the numerator over the denominator and nothing else.
+
+The condition ladder is `NM / LP / MP / HP / DMG`, which is the hobby's. **It is not eBay's and
+this repository contains no mapping between them** — eBay's Card Condition has four values and no
+rung for a damaged card.
 
 ## Licence
 

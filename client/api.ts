@@ -11,6 +11,24 @@ import {
 	corpusSyncJobPath,
 	HEALTH_PATH,
 } from "../shared/contract.ts";
+import type {
+	CompletionDocument,
+	CopyCreateRequest,
+	CopyDisposalRequest,
+	CopyDocument,
+	CopyListDocument,
+	CopyPatchRequest,
+	PriorityDocument,
+	PriorityRequest,
+} from "../shared/copies.ts";
+import {
+	COMPLETION_PATH,
+	COPIES_PATH,
+	copyDisposalPath,
+	copyPath,
+	PRIORITIES_PATH,
+	variantCopiesPath,
+} from "../shared/copies.ts";
 
 export class ApiError extends Error {
 	readonly status: number;
@@ -76,4 +94,72 @@ export async function startCorpusSync(): Promise<CorpusSyncJobDocument> {
 		if (body.job !== null) return body.job;
 	}
 	throw new ApiError(response.status, `POST ${CORPUS_SYNC_PATH} responded ${response.status}`);
+}
+
+/* -------------------------------------------------------------------------- */
+/* The collection                                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Send a body and read one back.
+ *
+ * The server answers a rejected write with `{ error }` and a sentence written for the owner —
+ * *a grade needs a grader*, not `SQLITE_CONSTRAINT`. Surfacing that sentence rather than the
+ * status code is the difference between a form the owner can correct and one they can only retry.
+ */
+async function sendJson<T>(path: string, method: string, body: unknown): Promise<T> {
+	const response = await fetch(path, {
+		method,
+		headers: { "content-type": "application/json", accept: "application/json" },
+		body: JSON.stringify(body),
+	});
+	const payload: unknown = await response.json().catch(() => null);
+	if (!response.ok) {
+		const message =
+			typeof payload === "object" && payload !== null && "error" in payload
+				? String((payload as { error: unknown }).error)
+				: `${method} ${path} responded ${response.status}`;
+		throw new ApiError(response.status, message);
+	}
+	return payload as T;
+}
+
+/**
+ * One variant's copies, disposed ones included.
+ *
+ * A request of its own rather than a slice of the binder document: the trail carries prices,
+ * notes and disposal dates for every card ever held, which does not belong in a 290 KB document
+ * the phone re-downloads whenever the masterset changes. The consequence, stated rather than
+ * hidden: **the sheet's copy list needs the tailnet.** Ownership itself does not — that rides on
+ * the cached binder — so the grid still reads correctly offline.
+ */
+export async function fetchVariantCopies(
+	cardKey: string,
+	variantId: string,
+	signal?: AbortSignal,
+): Promise<readonly CopyDocument[]> {
+	const body = await getJson<CopyListDocument>(variantCopiesPath(cardKey, variantId), signal);
+	return body.copies;
+}
+
+/** Record a copy. The `id` is minted by the caller, so a replay lands in the same row. */
+export function createCopy(request: CopyCreateRequest): Promise<CopyDocument> {
+	return sendJson<CopyDocument>(COPIES_PATH, "POST", request);
+}
+
+export function updateCopy(id: string, patch: CopyPatchRequest): Promise<CopyDocument> {
+	return sendJson<CopyDocument>(copyPath(id), "PATCH", patch);
+}
+
+/** Dispose of a copy. There is no delete: the row stays, marked, with its price and its note. */
+export function disposeCopy(id: string, request: CopyDisposalRequest): Promise<CopyDocument> {
+	return sendJson<CopyDocument>(copyDisposalPath(id), "POST", request);
+}
+
+export function fetchCompletion(signal?: AbortSignal): Promise<CompletionDocument> {
+	return getJson<CompletionDocument>(COMPLETION_PATH, signal);
+}
+
+export function setVariantPriority(request: PriorityRequest): Promise<PriorityDocument> {
+	return sendJson<PriorityDocument>(PRIORITIES_PATH, "PUT", request);
 }

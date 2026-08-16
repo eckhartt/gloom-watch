@@ -519,3 +519,136 @@ main.binder {
 	background: transparent;
 	border: 1px solid var(--rule);
 }
+
+/* --- copies, inside the sheet ---------------------------------------------
+ *
+ * Plain on purpose. The spec records the sheet's layout as still undecided, so this is a dense
+ * typographic minimum that makes every field reachable on a phone — not a design pretending to be
+ * a decision. What is load-bearing is the tap target and the fact that nothing here scrolls the
+ * binder behind it.
+ * ------------------------------------------------------------------------- */
+
+.sheet-copies {
+	margin-top: 1rem;
+	padding-top: 0.75rem;
+	border-top: 1px solid var(--rule);
+}
+
+.sheet-copies h3 {
+	margin: 0 0 0.5rem;
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--ink-dim);
+}
+
+.copy-list {
+	list-style: none;
+	margin: 0 0 0.75rem;
+	padding: 0;
+}
+
+.copy {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 0.5rem;
+	padding: 0.5rem 0;
+	border-bottom: 1px solid var(--rule);
+	font-size: 0.8125rem;
+}
+
+.copy-lines {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	min-width: 0;
+}
+
+.copy-headline {
+	color: var(--leaf);
+}
+
+/* A disposed copy is still a record, and it should read as one — present, and plainly past. */
+.copy-disposed .copy-headline {
+	color: var(--ink-dim);
+	text-decoration: line-through;
+}
+
+.copy-note {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.copy-buttons {
+	display: flex;
+	flex: none;
+	gap: 0.35rem;
+}
+
+.copy-buttons button {
+	padding: 0.35rem 0.6rem;
+	min-height: 2.25rem;
+	font-size: 0.75rem;
+}
+
+.copy-form,
+.copy-dispose {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	margin-top: 0.5rem;
+}
+
+.copy-field {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-size: 0.75rem;
+	color: var(--ink-dim);
+}
+
+.copy-field > label {
+	flex: none;
+	width: 6.5rem;
+}
+
+.copy-field input,
+.copy-field select,
+.copy-field textarea {
+	flex: 1;
+	min-width: 0;
+	font: inherit;
+	font-size: 0.8125rem;
+	color: var(--ink);
+	background: var(--ground);
+	border: 1px solid var(--rule);
+	border-radius: 4px;
+	/* Under 16px iOS zooms the whole page on focus and never zooms back out. */
+	padding: 0.5rem 0.5rem;
+}
+
+.copy-field textarea {
+	resize: vertical;
+}
+
+.copy-pair {
+	display: flex;
+	flex: 1;
+	gap: 0.35rem;
+	min-width: 0;
+}
+
+/* The code travels with the amount. Narrow, beside it, never a separate row that can be skipped. */
+.copy-pair .copy-currency {
+	flex: none;
+	width: 4.5rem;
+	text-transform: uppercase;
+}
+
+.copy-priority {
+	margin-top: 0.75rem;
+	padding-top: 0.75rem;
+	border-top: 1px solid var(--rule);
+}

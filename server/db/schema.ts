@@ -1,5 +1,8 @@
+import { sql } from "drizzle-orm";
 import {
 	blob,
+	check,
+	foreignKey,
 	index,
 	integer,
 	primaryKey,
@@ -7,6 +10,13 @@ import {
 	text,
 	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import {
+	COPY_CONDITIONS,
+	COPY_DISPOSAL_KINDS,
+	COPY_GRADERS,
+	COPY_SOURCE_TYPES,
+	COPY_STATUSES,
+} from "../../shared/copies.ts";
 import { PUSH_TRANSPORTS } from "../../shared/push.ts";
 
 /**
@@ -16,7 +26,7 @@ import { PUSH_TRANSPORTS } from "../../shared/push.ts";
  * the owner edits, and folding a job heartbeat into that table would confuse configuration with
  * health the moment either grows.
  *
- * Copies, photographs, listings and aliases are later tickets and are not modelled here.
+ * Photographs, listings and aliases are later tickets and are not modelled here.
  */
 export const appState = sqliteTable("app_state", {
 	key: text("key").primaryKey(),
@@ -382,3 +392,156 @@ export const corpusSyncJobs = sqliteTable(
 );
 
 export type CorpusSyncJobRow = typeof corpusSyncJobs.$inferSelect;
+
+/**
+ * One physical card the owner holds — or held, and disposed of.
+ *
+ * **One row is one object, never a quantity.** A PSA 9 and a raw copy of the same variant are two
+ * rows, because the cert number, the condition, the price paid and the source all describe one
+ * card and a count of two would have nowhere to put the second of each.
+ *
+ * **`id` is minted by the client.** That is what makes the outbox's replay idempotent in the next
+ * ticket but one: a create whose response was lost on a dropping tailnet replays into this same
+ * row rather than into a second card that does not exist. A server-generated key could not,
+ * because the client would have nothing to replay with.
+ *
+ * **The identity of the variant is composite**, and it is a real foreign key onto
+ * `corpus_variants(card_key, variant_id)` rather than a pair of loose columns. `variant_id` alone
+ * is shared by 264 different cards in the live corpus, so a copy keyed on it would be a copy of
+ * up to 264 cards at once. `PRAGMA foreign_keys = ON` is set in `db/client.ts`, so this is
+ * enforced by SQLite and not merely intended. It never bites on a sync: a variant that vanishes
+ * upstream is flagged and kept, never deleted, so a copy pointing at it stays valid.
+ *
+ * **Disposal retains the row** — `status` moves to `disposed` and `disposed_at` records when.
+ * There is no delete path anywhere in the application. Which is precisely why **every ownership
+ * query must filter `status = 'owned'`**: the rows are still here, and a query that forgets says
+ * the owner holds a card they sold, silently and plausibly.
+ *
+ * Money is `*_minor` INTEGER paired with an ISO 4217 code, never a float. Grade is integer tenths
+ * and requires a grader. The calendar dates are ISO `YYYY-MM-DD` strings, not epochs; `created_at`
+ * and `updated_at` are instants and are epoch milliseconds.
+ *
+ * **There is no defect column and there is not going to be one.** A miscut or an off-centre cut
+ * happened to one object rather than to a print run: no enum, no boolean, nothing to sort on. It
+ * may be prose in `note`.
+ */
+export const copies = sqliteTable(
+	"copies",
+	{
+		/** A client-generated UUID. The primary key, so a replayed create yields one row. */
+		id: text("id").primaryKey(),
+		cardKey: text("card_key").notNull(),
+		/** Opaque, and meaningless without `card_key`. The pair is the variant. */
+		variantId: text("variant_id").notNull(),
+
+		/** The hobby ladder. **Not eBay's vocabulary**; no mapping exists between them. */
+		condition: text("condition", { enum: COPY_CONDITIONS }),
+		grader: text("grader", { enum: COPY_GRADERS }),
+		/** Integer tenths: `PSA 8.5` is `85`, so half grades compare exactly. Requires `grader`. */
+		grade: integer("grade"),
+		/** Identifies one physical slab, so the owner can recognise their own card on the market. */
+		certNo: text("cert_no"),
+
+		/** Integer minor units of `currency`. ¥4,200 is `4200`, not `420000`. */
+		priceMinor: integer("price_minor"),
+		currency: text("currency"),
+		/** The home-currency value **captured at purchase** — the historical rate is not recoverable. */
+		priceHomeMinor: integer("price_home_minor"),
+		homeCurrency: text("home_currency"),
+		/** ISO `YYYY-MM-DD`: when the rate was taken. Typed by hand; there is no FX API. */
+		rateDate: text("rate_date"),
+
+		/** ISO `YYYY-MM-DD`. A calendar date, not an instant. */
+		acquiredAt: text("acquired_at"),
+		/** Where the card came from. Distinct from a variant's `provenance`, which is about the row. */
+		sourceType: text("source_type", { enum: COPY_SOURCE_TYPES }),
+		/** The owner's own words. No eBay seller identity is ever stored, here or anywhere. */
+		sourceNote: text("source_note"),
+		note: text("note"),
+
+		status: text("status", { enum: COPY_STATUSES }).notNull(),
+		/** ISO `YYYY-MM-DD`. Required once the status is `disposed`; see the check below. */
+		disposedAt: text("disposed_at"),
+		disposalKind: text("disposal_kind", { enum: COPY_DISPOSAL_KINDS }),
+
+		createdAt: integer("created_at").notNull(),
+		updatedAt: integer("updated_at").notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.cardKey, table.variantId],
+			foreignColumns: [corpusVariants.cardKey, corpusVariants.variantId],
+			name: "copies_variant_fk",
+		}),
+		/**
+		 * Status first, because the one query that reads ownership filters on it before anything
+		 * else and then groups by the pair — so this index is the whole query.
+		 */
+		index("copies_owned_idx").on(table.status, table.cardKey, table.variantId),
+		/** The sheet's purchase trail for one variant, disposed rows included. */
+		index("copies_variant_idx").on(table.cardKey, table.variantId),
+
+		/**
+		 * The invariants, held by the database as well as by the validator.
+		 *
+		 * They are here because the validator is one code path and this table will grow others — an
+		 * import route and an outbox replay are both stated requirements. A rule enforced only in a
+		 * request handler is a rule that holds for requests.
+		 *
+		 * Only the ones whose violation is *silent* are checked. A bad `condition` shows up as a
+		 * strange label on a screen; a `status` of `Owned` drops the card out of the collection with
+		 * no visible symptom at all, and a grade with no grader is a number that means nothing.
+		 */
+		check("copies_status_known", sql`${table.status} in ('owned', 'disposed')`),
+		check("copies_grade_needs_grader", sql`${table.grade} is null or ${table.grader} is not null`),
+		check(
+			"copies_price_needs_currency",
+			sql`${table.priceMinor} is null or ${table.currency} is not null`,
+		),
+		check(
+			"copies_home_price_needs_currency_and_rate_date",
+			sql`${table.priceHomeMinor} is null or (${table.homeCurrency} is not null and ${table.rateDate} is not null)`,
+		),
+		check(
+			"copies_disposed_needs_date",
+			sql`${table.status} <> 'disposed' or ${table.disposedAt} is not null`,
+		),
+	],
+);
+
+export type CopyRow = typeof copies.$inferSelect;
+
+/**
+ * The owner's priority on a variant they do not hold — the dial the notification policy reads.
+ *
+ * **A table of its own rather than a column on `corpus_variants`, and that is the point.** The
+ * sync owns every column of that table and upserts them from upstream; a priority sitting among
+ * them survives only for as long as nobody adds it to an `excluded.*` list. The spec requires
+ * priorities to survive a re-import, and here that is structural: the sync has no reason to write
+ * to this table and no statement in `corpus/repository.ts` names it.
+ *
+ * Keyed on the same composite identity as everything else, with the same foreign key. Absent
+ * means unset — clearing a priority deletes the row rather than storing a zero, because `0` is a
+ * real rung on the 0–3 scale and would otherwise be indistinguishable from "never set".
+ */
+export const variantPriorities = sqliteTable(
+	"variant_priorities",
+	{
+		cardKey: text("card_key").notNull(),
+		variantId: text("variant_id").notNull(),
+		/** 0–3. `priority_instant_level` (default 3) is the rung that pushes instantly. */
+		priority: integer("priority").notNull(),
+		updatedAt: integer("updated_at").notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.cardKey, table.variantId] }),
+		foreignKey({
+			columns: [table.cardKey, table.variantId],
+			foreignColumns: [corpusVariants.cardKey, corpusVariants.variantId],
+			name: "variant_priorities_variant_fk",
+		}),
+		check("variant_priorities_range", sql`${table.priority} between 0 and 3`),
+	],
+);
+
+export type VariantPriorityRow = typeof variantPriorities.$inferSelect;

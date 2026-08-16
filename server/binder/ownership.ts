@@ -1,32 +1,50 @@
 /**
  * How many copies the owner currently holds of each variant.
  *
- * **There is no copies table yet.** One row per physical card — with its condition or grade, its
- * cert number, what was paid and where it came from — is the next ticket (`01m04pm9t9`), which
- * this one blocks. So this reads a source that exists and yields nothing, and every entry in the
- * binder honestly reports zero copies today.
+ * **This is the only place in the application that answers "what does the owner hold".** Not by
+ * convention — by arithmetic: the binder document reads this index, and completion is computed
+ * from the same index rather than from a second query of its own. One query means one place the
+ * `status = 'owned'` filter can be forgotten, and `tests/ownership-filter.test.ts` fails if a
+ * second one ever appears.
  *
- * It is a function over the database rather than a `false` written into the document builder,
- * and that distinction is the point. Ownership already travels the whole way — through the
- * repository, the binder document, the wire contract, the cell's visual treatment and the sheet
- * — so the copies ticket fills this one function in and nothing else moves. A hardcoded `false`
- * sprinkled through the client would instead have to be found and unpicked in five places, and
- * the "owned and needed are distinguishable at a glance" criterion could not be proved until
- * copies existed.
+ * The binder ticket left this function returning an empty map because there was no copies table.
+ * Filling it in is the whole of the read path for this ticket: ownership already travelled
+ * through the repository, the document, the wire contract, the cell's visual treatment and the
+ * sheet, so nothing else on that path had to move.
  *
- * Keyed by `binderEntryKey(cardKey, variantId)` — never by `variantId`, which 264 different
- * cards share in the live corpus.
+ * **Keyed by `binderEntryKey(cardKey, variantId)` — never by `variantId`.** In the live corpus 817
+ * variants carry 21 distinct `variant_id`s, the most-shared held by 264 different cards and the
+ * literal string `"generated"` by 106. Keyed on `variantId` this index would collapse to 21
+ * entries and report hundreds of cards as owned because one of them is, with no error anywhere.
  *
- * **Every ownership query filters `status = 'owned'`.** The spec keeps disposed copies as rows
- * so the purchase history and upgrade trail survive, and counting them would inflate completion.
- * That filter belongs in this function when it grows a query, and it is easy to forget once.
+ * **Every ownership query filters `status = 'owned'`.** Disposed copies keep their rows so the
+ * purchase history and the upgrade trail survive; counting them would say the owner holds a card
+ * they sold, and would inflate completion silently and plausibly.
+ *
+ * A **count**, not a boolean: a PSA 9 and a raw copy of one variant are two rows, and the sheet
+ * shows the number.
  */
 
+import { count, eq } from "drizzle-orm";
+import { binderEntryKey } from "../../shared/contract.ts";
+import { OWNED } from "../../shared/copies.ts";
 import type { GloomDatabase } from "../db/client.ts";
+import { copies } from "../db/schema.ts";
 
 /** `binderEntryKey` → number of copies held at `status = 'owned'`. Absent means none. */
 export type OwnershipIndex = ReadonlyMap<string, number>;
 
-export function readOwnedCopyCounts(_db: GloomDatabase): OwnershipIndex {
-	return new Map();
+export function readOwnedCopyCounts(db: GloomDatabase): OwnershipIndex {
+	const rows = db
+		.select({
+			cardKey: copies.cardKey,
+			variantId: copies.variantId,
+			held: count(),
+		})
+		.from(copies)
+		.where(eq(copies.status, OWNED))
+		.groupBy(copies.cardKey, copies.variantId)
+		.all();
+
+	return new Map(rows.map((row) => [binderEntryKey(row.cardKey, row.variantId), row.held]));
 }

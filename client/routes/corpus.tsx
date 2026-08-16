@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CorpusStatusDocument, CorpusSyncJobDocument } from "../../shared/contract.ts";
 import { fetchCorpusStatus, startCorpusSync } from "../api.ts";
+import { CORPUS_STATUS_QUERY_KEY, invalidateAfter } from "../collection.ts";
 
 /**
  * The corpus panel: press sync, watch it run, read the variant count and the last-synced time.
@@ -77,7 +78,7 @@ export function CorpusPanel({
 	const queryClient = useQueryClient();
 
 	const status = useQuery({
-		queryKey: ["corpus-status"],
+		queryKey: CORPUS_STATUS_QUERY_KEY,
 		queryFn: ({ signal }) => fetchCorpusStatus(signal),
 		refetchInterval: (query) => {
 			const data = query.state.data as CorpusStatusDocument | undefined;
@@ -87,9 +88,10 @@ export function CorpusPanel({
 
 	const sync = useMutation({
 		mutationFn: startCorpusSync,
-		onSuccess: () => {
-			void queryClient.invalidateQueries({ queryKey: ["corpus-status"] });
-		},
+		// A sync moves the **denominator**: a new language or a new printing makes the masterset
+		// bigger and completion goes down, which is correct for a masterset and exactly the number a
+		// client holding yesterday's figure would get wrong.
+		onSuccess: () => invalidateAfter(queryClient, "corpus-sync"),
 	});
 
 	const data = status.data;

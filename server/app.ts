@@ -5,6 +5,7 @@ import type { HealthDocument } from "../shared/contract.ts";
 import { HEALTH_PATH } from "../shared/contract.ts";
 import { PUSH_BASE_PATH } from "../shared/push.ts";
 import { createBinderRoutes } from "./binder/http.ts";
+import { createCopyRoutes } from "./copies/http.ts";
 import { type CorpusSyncStarter, createCorpusRoutes } from "./corpus/http.ts";
 import { countVariants, readLastSuccessfulSyncAt } from "./corpus/repository.ts";
 import { defaultCorpusSyncStarter } from "./corpus/runner.ts";
@@ -77,6 +78,8 @@ export function createApp(deps: AppDependencies): Hono {
 	);
 
 	app.route("/", createBinderRoutes({ db: deps.handle.db, now }));
+
+	app.route("/", createCopyRoutes({ db: deps.handle.db, now }));
 
 	app.route(
 		"/",

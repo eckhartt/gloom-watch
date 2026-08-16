@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildBinderDocument, compareCardNumbers } from "../server/binder/document.ts";
 import { readOwnedCopyCounts } from "../server/binder/ownership.ts";
+import { insertCopy, setVariantPriority } from "../server/copies/repository.ts";
 import { binderEntryKey } from "../shared/contract.ts";
 import {
 	EXPECTED_ORDER,
@@ -103,19 +104,56 @@ describe("the binder document", () => {
 		expect(first).toBe(second);
 	});
 
-	it("reports every variant as needed, because there are no copies yet", () => {
-		// Honest rather than aspirational: there is no copies table until the next ticket, so the
-		// ownership index is empty and every entry says zero. If this ever fails without a copies
-		// table existing, something is inventing ownership.
+	it("reports every variant as needed when the owner holds nothing", () => {
+		// An empty collection is zero everywhere, and it is the state the fixture starts in. If
+		// this ever fails without a copy having been recorded, something is inventing ownership.
 		const document = build();
 		expect(readOwnedCopyCounts(temp.handle.db).size).toBe(0);
 		expect(document.entries.every((entry) => entry.ownedCopies === 0)).toBe(true);
 	});
 
+	it("reads ownership out of the database when no index is supplied", () => {
+		// The seam the binder ticket left, now filled: the document's default is what the copies
+		// table actually holds. `tests/copies-repository.test.ts` covers the keying; this covers
+		// that the document is wired to it rather than to the injected fixture alone.
+		insertCopy(
+			temp.handle.db,
+			{
+				id: "0f2a9c40-6b1d-4c8e-9a11-5f0f2c3b4d5e",
+				cardKey: "en:base2-44",
+				variantId: FIRST_EDITION_VARIANT,
+			},
+			1_000,
+		);
+
+		const document = build();
+		const owned = document.entries.filter((entry) => entry.ownedCopies > 0);
+		expect(owned.map((entry) => entry.key)).toEqual([`en:base2-44 ${FIRST_EDITION_VARIANT}`]);
+	});
+
+	it("carries the variant's priority, unset until the owner sets one", () => {
+		// The dial rides on the binder document so the sheet can render it the instant it opens,
+		// offline included — the same reason ownership rides here.
+		expect(build().entries.every((entry) => entry.priority === null)).toBe(true);
+
+		setVariantPriority(temp.handle.db, "en:base2-44", FIRST_EDITION_VARIANT, 3, 1_000);
+
+		const document = build();
+		expect(
+			document.entries.find((entry) => entry.key === `en:base2-44 ${FIRST_EDITION_VARIANT}`)
+				?.priority,
+		).toBe(3);
+		// The other printing of the same card, and the other card sharing a `variant_id`, are both
+		// untouched — priority is keyed the same composite way as everything else.
+		expect(
+			document.entries.find((entry) => entry.key === `en:base2-44 ${SHARED_VARIANT}`)?.priority,
+		).toBeNull();
+	});
+
 	it("marks exactly the owned variants when the ownership index has something in it", () => {
-		// **The ownership distinction, flipped by input.** The copies table arrives in the next
-		// ticket; this proves the whole path from the index through the document is already
-		// wired, so that ticket fills in one function rather than re-shaping the contract.
+		// **The ownership distinction, flipped by input.** Written before the copies table existed,
+		// to prove the whole path from the index through the document was wired; kept because it
+		// still isolates the document's half of that path from the query that fills the index.
 		const owned = new Map([[`en:base2-44 ${FIRST_EDITION_VARIANT}`, 2]]);
 		const document = build(owned);
 

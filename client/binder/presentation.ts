@@ -7,6 +7,9 @@
  */
 
 import type { BinderEntry } from "../../shared/contract.ts";
+import type { CopyDocument } from "../../shared/copies.ts";
+import { formatGradeTenths } from "../../shared/copies.ts";
+import { formatMoney } from "../../shared/money.ts";
 
 export type CellState = "owned" | "needed";
 
@@ -156,4 +159,72 @@ export function setLine(entry: BinderEntry): string {
 	const name = entry.setName ?? entry.setId;
 	const date = entry.setReleaseDate ?? "no release date";
 	return `${name} · ${date} · ${entry.localId}`;
+}
+
+/* --- copies --------------------------------------------------------------- */
+
+export interface CopyPresentation {
+	/** What this card *is*: a grade, or a condition, or an admission that neither was recorded. */
+	readonly headline: string;
+	/** What it cost and where it came from. Empty when nothing but the card itself was recorded. */
+	readonly detail: string;
+	/** Non-null once the card has gone. The row stays; this is what says so. */
+	readonly disposal: string | null;
+}
+
+/**
+ * One copy, as the sheet lists it.
+ *
+ * **A grade and a condition are not the same kind of claim**, so they are never joined with a
+ * slash or shown side by side. A slab's grade is the grading company's judgement printed on the
+ * label; a condition is the owner's, and the spec omits it for graded cards precisely so the two
+ * do not compete. Whichever one exists is the headline.
+ *
+ * A price is never rendered without its code — `12.50` alone is a number nobody can read back —
+ * and the home-currency value carries the date its rate was taken, because the rate was typed by
+ * hand and there is no way to look it up again.
+ */
+export function copyPresentation(copy: CopyDocument): CopyPresentation {
+	const headline =
+		copy.grader !== null
+			? copy.grade === null
+				? copy.grader
+				: `${copy.grader} ${formatGradeTenths(copy.grade)}`
+			: (copy.condition ?? "no condition recorded");
+
+	const detail: string[] = [];
+	if (copy.certNo !== null) detail.push(`cert ${copy.certNo}`);
+	if (copy.priceMinor !== null && copy.currency !== null) {
+		detail.push(formatMoney(copy.priceMinor, copy.currency));
+	}
+	if (copy.priceHomeMinor !== null && copy.homeCurrency !== null) {
+		// The rate date is part of the figure, not a footnote: without it the conversion is an
+		// unattributed number, and nothing in this application can reconstruct which day it is from.
+		const home = formatMoney(copy.priceHomeMinor, copy.homeCurrency);
+		detail.push(copy.rateDate === null ? home : `${home} @ ${copy.rateDate}`);
+	}
+	if (copy.sourceType !== null) {
+		detail.push(
+			copy.sourceNote === null ? copy.sourceType : `${copy.sourceType} — ${copy.sourceNote}`,
+		);
+	}
+	if (copy.acquiredAt !== null) detail.push(copy.acquiredAt);
+
+	const disposal =
+		copy.status === "disposed"
+			? `disposed ${copy.disposedAt ?? "—"}${copy.disposalKind === null ? "" : ` · ${copy.disposalKind}`}`
+			: null;
+
+	return { headline, detail: detail.join(" · "), disposal };
+}
+
+/**
+ * How the sheet says what is held.
+ *
+ * The count, not a tick: two copies of one variant is a fact about the collection the owner needs
+ * to be able to read, and it is the reason ownership is a number all the way through the contract.
+ */
+export function ownershipLine(entry: BinderEntry): string {
+	if (entry.ownedCopies === 0) return "needed";
+	return entry.ownedCopies === 1 ? "1 copy owned" : `${entry.ownedCopies} copies owned`;
 }

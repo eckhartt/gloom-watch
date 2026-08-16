@@ -16,6 +16,7 @@
 import { eq } from "drizzle-orm";
 import type { BinderDocument, BinderEntry } from "../../shared/contract.ts";
 import { binderEntryKey } from "../../shared/contract.ts";
+import { readVariantPriorities } from "../copies/repository.ts";
 import { readSets } from "../corpus/repository.ts";
 import type { GloomDatabase } from "../db/client.ts";
 import { corpusCards, corpusVariants } from "../db/schema.ts";
@@ -26,9 +27,8 @@ export interface BinderDocumentDeps {
 	/** Injected so tests drive time without a global clock mock. */
 	readonly now: () => number;
 	/**
-	 * Ownership, supplied rather than looked up, so a test can build the same document with
-	 * copies in it. Defaults to what the database actually holds — nothing, until the copies
-	 * ticket lands.
+	 * Ownership, supplied rather than looked up, so a test can build the same document with an
+	 * index it wrote by hand. Defaults to what the database actually holds.
 	 */
 	readonly ownership?: OwnershipIndex;
 }
@@ -126,6 +126,15 @@ export function buildBinderDocument(deps: BinderDocumentDeps): BinderDocument {
 	const ownership = deps.ownership ?? readOwnedCopyCounts(db);
 
 	const setsByKey = new Map(readSets(db).map((set) => [set.setKey, set]));
+	// Joined in TypeScript for the same reason the sets are: a `Map` keyed on the composed
+	// identity is clearer than a SQL join on two columns, and there are only ever as many rows
+	// here as variants the owner has bothered to rank.
+	const priorityByKey = new Map(
+		readVariantPriorities(db).map((row) => [
+			binderEntryKey(row.cardKey, row.variantId),
+			row.priority,
+		]),
+	);
 
 	const rows = db
 		.select({
@@ -175,6 +184,7 @@ export function buildBinderDocument(deps: BinderDocumentDeps): BinderDocument {
 			// A variant whose *card* vanished upstream is missing too, whatever its own flag says.
 			missingUpstream: row.variantMissing === 1 || row.cardMissing === 1,
 			ownedCopies: ownership.get(key) ?? 0,
+			priority: priorityByKey.get(key) ?? null,
 		};
 	});
 

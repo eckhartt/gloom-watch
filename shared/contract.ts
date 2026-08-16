@@ -95,11 +95,19 @@ export interface BinderEntry {
 	/**
 	 * How many copies at `status = 'owned'` point at this variant. `0` means needed.
 	 *
-	 * A count rather than a boolean because a PSA 9 and a raw copy of one variant are two rows,
-	 * and because the copies ticket should fill this in rather than reshape the contract. **It is
-	 * `0` everywhere today**: there is no copies table until ticket `01m04pm9t9` adds one.
+	 * A count rather than a boolean because a PSA 9 and a raw copy of one variant are two rows.
+	 * Disposed copies are not counted here — they keep their rows so the purchase history
+	 * survives, and counting them would say the owner holds a card they sold.
 	 */
 	readonly ownedCopies: number;
+	/**
+	 * The owner's 0–3 ranking of a variant they do not hold, or `null` when unset.
+	 *
+	 * It rides on the binder document rather than being fetched per variant because the sheet has
+	 * to render it the instant it opens, offline included — the same reason ownership rides here.
+	 * It belongs to the variant and not to a copy: by definition there is no copy to hang it on.
+	 */
+	readonly priority: number | null;
 }
 
 /**

@@ -5,7 +5,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BinderEntry } from "../../shared/contract.ts";
 import { corpusCardImagePath } from "../../shared/contract.ts";
 import { fetchBinder } from "../api.ts";
-import { axisRows, cellPresentation, setLine, variantBadge } from "../binder/presentation.ts";
+import { CopiesPanel } from "../binder/copies-panel.tsx";
+import {
+	axisRows,
+	cellPresentation,
+	ownershipLine,
+	setLine,
+	variantBadge,
+} from "../binder/presentation.ts";
+import { BINDER_QUERY_KEY } from "../collection.ts";
 
 /**
  * The binder — the app's primary surface, and the screen the whole design is built around.
@@ -113,9 +121,10 @@ function BinderCell({
 /**
  * The variant sheet.
  *
- * It shows the corpus image and the variant's axes, and nothing else — photographs, copies and
- * listings are later tickets and inventing a placeholder for them here would be inventing a
- * layout the spec explicitly left undecided.
+ * It shows the corpus image, the variant's axes and the copies the owner holds of it — adding,
+ * editing and disposing of one all happen here. Photographs and current listings are later tickets
+ * and there is no placeholder for either: the spec records the sheet's layout as still undecided,
+ * and a box reserved for something nobody has designed is a design decision made by accident.
  *
  * Rendered as a sibling of the scroll container rather than inside it, so the grid keeps its
  * scroll offset and the sheet is not itself scrolled away. Escape and the backdrop both dismiss,
@@ -158,10 +167,7 @@ function BinderSheet({ entry, onClose }: { entry: BinderEntry; onClose: () => vo
 					)}
 
 					<dl className="sheet-facts">
-						<Fact
-							label="State"
-							value={presentation.owned ? `${entry.ownedCopies} owned` : "needed"}
-						/>
+						<Fact label="State" value={ownershipLine(entry)} />
 						<Fact label="Language" value={entry.language} />
 						<Fact label="Rarity" value={entry.rarity ?? "—"} />
 						{axisRows(entry).map((row) => (
@@ -174,6 +180,12 @@ function BinderSheet({ entry, onClose }: { entry: BinderEntry; onClose: () => vo
 						) : null}
 					</dl>
 				</div>
+
+				{/* Keyed on the variant so the panel's own state — a half-filled form, the copy being
+				    edited, an in-flight priority — cannot survive into a different card. Dismissing the
+				    sheet unmounts it today and there is no way to move between variants without
+				    dismissing, but the key is what makes that a property rather than a coincidence. */}
+				<CopiesPanel key={entry.key} entry={entry} />
 			</section>
 		</div>
 	);
@@ -190,7 +202,7 @@ function Fact({ label, value, tone }: { label: string; value: string; tone?: "al
 
 export function BinderScreen() {
 	const binder = useQuery({
-		queryKey: ["binder"],
+		queryKey: BINDER_QUERY_KEY,
 		queryFn: ({ signal }) => fetchBinder(signal),
 		// The corpus changes only when the owner presses sync, and copies only when the owner
 		// records one. Polling a 200 KB document on a timer would burn battery to learn nothing.

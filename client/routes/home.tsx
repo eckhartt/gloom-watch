@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { fetchHealth } from "../api.ts";
+import { fetchCompletion, fetchHealth } from "../api.ts";
+import { COMPLETION_QUERY_KEY } from "../collection.ts";
 import { NotificationSection } from "../notifications.tsx";
 import { serviceWorkerScope } from "../pwa.ts";
 import { CorpusPanel } from "./corpus.tsx";
@@ -39,6 +40,55 @@ function Row({ label, value }: { label: string; value: string }) {
 			<dt>{label}</dt>
 			<dd>{value}</dd>
 		</div>
+	);
+}
+
+/**
+ * Completion — the two numbers, and **not** a presentation of them.
+ *
+ * The spec records how completion is presented numerically as **still open**, and the binder
+ * ticket forbids an aggregate summary above the grid. So it is here, on the screen the owner
+ * consults rather than the one they browse, as the numerator over the denominator exactly as the
+ * spec defines them. No percentage, no bar, no ratio: each of those is a choice, and rounding
+ * `312 / 817` to `38%` is a choice that throws away the only two numbers anybody has agreed on.
+ *
+ * The excluded count is shown because the denominator rule is invisible otherwise. A variant
+ * flagged `missing_upstream` that the owner does not hold leaves the total, so the figure can move
+ * without the owner touching anything, and that line is what makes the reason readable.
+ */
+function CompletionPanel() {
+	const completion = useQuery({
+		queryKey: COMPLETION_QUERY_KEY,
+		queryFn: ({ signal }) => fetchCompletion(signal),
+	});
+
+	return (
+		<section>
+			<h2>The collection</h2>
+			{completion.isError ? (
+				<p className="error">The server did not answer: {(completion.error as Error).message}</p>
+			) : null}
+			{completion.data ? (
+				<dl>
+					<Row
+						label="Variants owned"
+						value={`${completion.data.owned} / ${completion.data.total}`}
+					/>
+					{completion.data.missingUpstreamExcluded > 0 ? (
+						// The explanation belongs in the value, not the label. `dt` is `white-space:
+						// nowrap`, so a long label cannot wrap and pushes the row past the viewport —
+						// at 390 points this line overflowed horizontally, which the binder's own rule
+						// forbids. `dd` wraps, so the reason survives at the width it has to survive at.
+						<Row
+							label="Left out"
+							value={`${completion.data.missingUpstreamExcluded} — missing upstream, unowned`}
+						/>
+					) : null}
+				</dl>
+			) : (
+				<p className="muted">Reading…</p>
+			)}
+		</section>
 	);
 }
 
@@ -99,6 +149,8 @@ export function HomeScreen() {
 					</dl>
 				) : null}
 			</section>
+
+			<CompletionPanel />
 
 			<CorpusPanel
 				formatInstant={(value) => formatInstant(value, health.data?.timezone ?? "UTC")}

@@ -35,15 +35,16 @@ function entryWith(overrides: Partial<BinderEntry>): BinderEntry {
 		hasImage: true,
 		missingUpstream: false,
 		ownedCopies: 0,
+		priority: null,
 		...overrides,
 	};
 }
 
 describe("owned and needed", () => {
 	it("changes the cell's treatment when ownership changes, and nothing else about it", () => {
-		// **The distinction, flipped by input.** Every entry on the live box says zero copies
-		// today because the copies table is the next ticket — so this is the only place the
-		// owned treatment is exercised at all until it lands.
+		// **The distinction, flipped by input.** Written when every entry on the box still said
+		// zero copies; the copies table has landed since, so it is now the treatment the owner
+		// actually sees, and this is still the place it is decided.
 		const needed = cellPresentation(entryWith({ ownedCopies: 0 }));
 		const owned = cellPresentation(entryWith({ ownedCopies: 1 }));
 
@@ -62,8 +63,8 @@ describe("owned and needed", () => {
 	});
 
 	it("counts copies rather than answering yes or no", () => {
-		// A PSA 9 and a raw copy of one variant are two rows, not one boolean. Shaped now so the
-		// copies ticket fills the number in rather than re-shaping the contract.
+		// A PSA 9 and a raw copy of one variant are two rows, not one boolean — which is why the
+		// contract carries a count and the sheet shows it.
 		expect(cellPresentation(entryWith({ ownedCopies: 2 })).owned).toBe(true);
 		expect(entryWith({ ownedCopies: 2 }).ownedCopies).toBe(2);
 	});
