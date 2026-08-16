@@ -75,9 +75,6 @@ These are starting points for the data-source research, not endorsements:
 - **Offline behaviour.** What the installed PWA can still do with no network —
   browse the collection, view cached images, queue edits. Hangs on the stack
   decision and on where images live.
-- **Backup, export and recovery** of the collection data. The card corpus is
-  re-derivable from its source; the owned copies are not, and are the only
-  irreplaceable data in the system. Hangs on the collection model.
 - **Marketplaces beyond eBay.** A masterset of the Oddish line is full of
   Japanese-only prints, which trade heavily on Yahoo Japan Auctions and Mercari
   JP. This looked essential when the map was charted; the eBay research has since
