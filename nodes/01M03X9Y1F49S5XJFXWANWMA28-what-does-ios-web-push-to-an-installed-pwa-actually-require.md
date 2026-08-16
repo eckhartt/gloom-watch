@@ -14,7 +14,6 @@ edges:
 meta:
   ticket: research
   hitl: no
-  claimed: wayfinder-charting
 ---
 ## Resolution
 
