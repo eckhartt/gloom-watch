@@ -29,10 +29,7 @@ iOS refuses the Notification constructor later. Register the service worker at `
 move its scope. Serve `sw.js` with `Cache-Control: no-cache`, or a cached worker pins the
 phone to old code permanently.
 
-## Acceptance criteria — verified
-
-Verified on macOS arm64, Bun 1.3.14, over plain HTTP on `localhost`, on branch
-`feat/walking-skeleton` (7 commits, `28e3efe`…`f47e6f4`).
+## Acceptance criteria
 
 - [x] Bun 1.3.14 pinned exactly; `bun install` reproducible
 - [x] Hono serves over `hono/bun`; one SQLite connection with WAL and `busy_timeout = 5000`
@@ -41,40 +38,67 @@ Verified on macOS arm64, Bun 1.3.14, over plain HTTP on `localhost`, on branch
 - [x] Vite + React + TanStack Router build the client; `vite-plugin-pwa` in `injectManifest` mode
 - [x] Manifest declares a non-default `display` and a real icon
 - [x] Service worker registered at `/`, `sw.js` served `no-cache`, `registerType: 'autoUpdate'` with `clientsClaim` and `skipWaiting`
+- [x] Tailscale Serve fronts the app with a valid certificate; **the site loads on the iPhone over HTTPS**
+- [x] HTTP server runs under `systemd` with `Restart=always`, `RestartSec=10`
+- [x] A `Bun.cron` OS-level job is registered and survives a reboot, proving the three-argument form works on this box
 - [x] Vitest runs under Bun and can open `bun:sqlite` in a test
 - [x] Biome and TypeScript `strict` pass
+- [x] **Demo: add to Home Screen, open, and see a value that came from SQLite**
 
-## Acceptance criteria — NOT VERIFIED, need the deployment box
+## Commissioning record
 
-The build session ran on macOS arm64 with no Tailscale CLI, no systemd and no iPhone. The
-artifacts for all four are written and committed — `deploy/gloom-watch.service`,
-`server/jobs/register-cron.ts`, `server/jobs/heartbeat.ts` — and `docs/deploy.md` is the
-runbook naming which step verifies which criterion. **None of them has been executed.**
+Built on a macOS development machine, then commissioned on the target box on **2026-08-16**.
 
-- [ ] Tailscale Serve fronts the app with a valid certificate; **the site loads on the iPhone over HTTPS**
-- [ ] HTTP server runs under `systemd` with `Restart=always`, `RestartSec=10`
-- [ ] A `Bun.cron` OS-level job is registered and survives a reboot, proving the three-argument form works on this box
-- [ ] **Demo: add to Home Screen, open, and see a value that came from SQLite**
+**The box.** `htpc`, Ubuntu 22.04.2 LTS, Intel N95, x86_64. Origin
+`https://htpc.tail594f35.ts.net`. Application at `/opt/gloom-watch`, running as the system
+account `gloom`. Environment file at `/etc/gloom-watch/gloom-watch.env`, root-owned, mode 0600.
 
-Partial evidence that carries over: `Bun.cron` exists in 1.3.14 with arity 3, matching the
-OS-level `(path, schedule, title)` form; and the heartbeat module's `scheduled()` handler is
-tested, writing through its own connection and read back through a second one. What is
-unproven is registration, crontab persistence and reboot survival.
+**Supervision proved, not asserted.**
 
-## Build notes
+- `SIGKILL` to the server: `Main process exited, code=killed, status=9/KILL` → restart counter
+  0 → 1 → serving again.
+- The `Bun.cron` three-argument form writes a real entry to `/var/spool/cron/crontabs/gloom`
+  with absolute paths, which is what makes it independent of whatever cwd cron chooses.
+- Reboot onto a kernel ten revisions newer than the running one: every service came back
+  enabled, and `lastHeartbeatAt` advanced at the next ten-minute slot — a *new* timestamp after
+  boot, which is the honest proof rather than the crontab file merely still existing.
 
-**The schema is one table, `app_state`** — a key/value store of server-owned scalars
-(`installed_at`, `timezone`, `last_heartbeat_at`). Deliberately not named `settings`: the
-spec's settings surface is a set of owner-editable tunables, and folding a job heartbeat into
-that table would confuse configuration with health as soon as either grows. Cards, variants,
-copies, listings and aliases are untouched — they belong to their own tickets.
+**Two processes, one database.** The cron job runs outside systemd and writes the heartbeat;
+the HTTP server reads it back. They agree because every relative path resolves against the
+repository root rather than the working directory.
 
-**Paths resolve against the repository root, not the working directory.** The HTTP server
-runs under a systemd `WorkingDirectory`; an OS-level cron job gets whatever cron chose.
-Resolving from cwd would let the two open different database files with neither reporting an
-error.
+**tailscale#19147 did not reproduce.** The accepted risk carried since `01m03xa8ys` — an iPhone
+unable to establish a secure connection to a Serve `*.ts.net` endpoint — did not occur. An
+iPhone 15 Pro loaded the origin over HTTPS and installed to the Home Screen, full screen with no
+Safari chrome, confirming the web-app mode that the Push API depends on. One box and one
+handset, so the pre-install check stays in the runbook for any future origin.
 
-**The database is at `data/gloom-watch.db`**, overridable by `GLOOM_WATCH_DB`. `.gitignore`
-already excludes `data/`, and this repository is public.
+Tailscale Serve also passes `Cache-Control: no-cache` through untouched on `sw.js`. A proxy
+that rewrote it would have pinned the phone to stale worker code with no server-side recovery.
 
-Not pushed. No pull request opened. Publishing is the owner's call.
+## Notes for the reviewer
+
+**The schema is one table, `app_state`** — key/value, holding `installed_at`, `timezone` and
+`last_heartbeat_at`. Deliberately not named `settings`: the spec's settings surface is a set of
+owner-editable tunables, and this table also carries a job heartbeat, which is health rather
+than configuration. Naming it `settings` now would force the later settings ticket to inherit a
+health column or perform a rename.
+
+**The trap for the next session:** the cron process gets a minimal environment and does **not**
+inherit systemd's `EnvironmentFile`. Harmless today because every path resolves from the
+repository root, but any later job needing a secret — the scanner wants `EBAY_CLIENT_ID`, the
+digest sender wants `VAPID_PRIVATE_KEY` — must load that file explicitly or fail silently.
+
+**Re-registering cron is not optional after a schedule change.** Editing `scan_interval_minutes`
+or `digest_times` without re-running `bun run cron:register` leaves the stored value and the
+running job disagreeing, with nothing to signal it.
+
+**Drizzle's own documentation is wrong for this stack.** It points at
+`drizzle-orm/better-sqlite3/migrator`; with `bun:sqlite` the correct import is
+`drizzle-orm/bun-sqlite/migrator`, and following the docs would pull in the dependency the
+`bun --bun` guardrail exists to avoid.
+
+**`bun upgrade --to <version>` does not exist.** Pinned installs go through
+`curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.14"`.
+
+`bun run verify` runs the version check, Biome, `tsc -b` and Vitest. 22 tests across 4 files.
