@@ -39,6 +39,7 @@ async function main(): Promise<void> {
 			`cards upserted      ${summary.cardsUpserted}`,
 			`variants upserted   ${summary.variantsUpserted}`,
 			`flagged missing     ${summary.cardsFlaggedMissing} card(s), ${summary.variantsFlaggedMissing} variant(s)`,
+			`sets fetched        ${summary.setsFetched} (${summary.setsUnchanged} already dated, ${summary.setsFlaggedMissing} flagged missing)`,
 			`images fetched      ${summary.imagesFetched} (${(summary.imageBytesFetched / 1048576).toFixed(2)} MiB)`,
 			`images unchanged    ${summary.imagesUnchanged}`,
 			`variant count       ${summary.variantCountBefore} -> ${summary.variantCountAfter}`,

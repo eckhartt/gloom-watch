@@ -6,15 +6,21 @@
  * is in SQLite rather than in memory, so the phone can poll it and a restart leaves a record
  * that is true rather than a job frozen at "running" forever.
  *
- * Five phases:
+ * Six phases:
  *
  * ```
  * languages   derive the language list from upstream, never hard-coded
  * brief       per language, the whole brief list + the per-species dex index, stored
  * detail      membership filtered LOCALLY over that store; detail fetched for survivors only
+ * sets        one request per (language, set) the detail phase just confirmed, for its
+ *             release date — the binder's default order, stored nowhere else
  * images      one webp BLOB per card, re-fetched only when the datas.json hash moved
  * reconcile   anything upstream no longer carries is flagged missing_upstream — never deleted
  * ```
+ *
+ * The sets phase sits **after** detail deliberately: it runs over the `(language, set_id)` pairs
+ * the cards actually landed on, which is 137 pairs against the live corpus rather than the 506
+ * a cross-product of 46 sets and 11 languages would suggest.
  */
 
 import { randomUUID } from "node:crypto";
@@ -28,13 +34,17 @@ import {
 	countVariants,
 	createSyncJob,
 	flagMissingUpstream,
+	flagSetMissingUpstream,
+	planSetFetches,
 	readBriefRecords,
 	readExclusions,
 	readImageCandidates,
 	replaceBriefSnapshot,
+	type SetFetchTarget,
 	type SyncJobPatch,
 	updateSyncJob,
 	upsertCard,
+	upsertSet,
 	variantKeyOf,
 	writeCardImage,
 } from "./repository.ts";
@@ -44,6 +54,7 @@ import {
 	lookupImageHash,
 	parseImageLocation,
 	type TcgdexClient,
+	type TcgdexSetDetail,
 } from "./tcgdex.ts";
 
 export interface CorpusSyncDeps {
@@ -72,6 +83,9 @@ export interface CorpusSyncSummary {
 	readonly imagesFetched: number;
 	readonly imagesUnchanged: number;
 	readonly imageBytesFetched: number;
+	readonly setsFetched: number;
+	readonly setsUnchanged: number;
+	readonly setsFlaggedMissing: number;
 	readonly unknownAxisValues: readonly UnknownAxisValue[];
 	readonly variantCountBefore: number;
 	readonly variantCountAfter: number;
@@ -145,6 +159,9 @@ export async function runCorpusSync(
 	let imagesFetched = 0;
 	let imagesUnchanged = 0;
 	let imageBytesFetched = 0;
+	let setsFetched = 0;
+	let setsUnchanged = 0;
+	let setsFlaggedMissing = 0;
 	let flagged = { cards: 0, variants: 0 };
 	const syncedLanguages: string[] = [];
 
@@ -216,8 +233,19 @@ export async function runCorpusSync(
 			await sleep(pauseMs);
 		});
 
-		/* ---- images --------------------------------------------------------- */
+		/* ---- sets ----------------------------------------------------------- */
+		// Scoped to the languages whose detail actually completed, for the same reason the image
+		// and reconcile phases are: a language upstream failed on must not have its sets chased,
+		// and must certainly not have them flagged as having vanished.
 		const reconcilable = syncedLanguages.filter((language) => !failedDetailLanguages.has(language));
+		patch({ phase: "sets", processed: 0, total: null, message: "planning set fetches" });
+		const setResult = await syncSets(deps, jobId, reconcilable, now, patch);
+		setsFetched = setResult.fetched;
+		setsUnchanged = setResult.unchanged;
+		setsFlaggedMissing = setResult.flaggedMissing;
+		failures.push(...setResult.failures);
+
+		/* ---- images --------------------------------------------------------- */
 		patch({ phase: "images", processed: 0, total: null, message: "reading the hash manifest" });
 		const imageResult = await syncImages(deps, jobId, reconcilable, now, patch);
 		imagesFetched = imageResult.fetched;
@@ -248,6 +276,9 @@ export async function runCorpusSync(
 			imagesFetched,
 			imagesUnchanged,
 			imageBytesFetched,
+			setsFetched,
+			setsUnchanged,
+			setsFlaggedMissing,
 			unknownAxisValues: JSON.stringify(summariseUnknown(unknownAxisValues)),
 			variantCountAfter,
 		});
@@ -266,6 +297,9 @@ export async function runCorpusSync(
 			imagesFetched,
 			imagesUnchanged,
 			imageBytesFetched,
+			setsFetched,
+			setsUnchanged,
+			setsFlaggedMissing,
 			unknownAxisValues,
 			variantCountBefore,
 			variantCountAfter,
@@ -296,6 +330,9 @@ export async function runCorpusSync(
 			imagesFetched,
 			imagesUnchanged,
 			imageBytesFetched,
+			setsFetched,
+			setsUnchanged,
+			setsFlaggedMissing,
 			unknownAxisValues,
 			variantCountBefore,
 			variantCountAfter: countVariants(db),
@@ -349,6 +386,108 @@ async function fetchBriefSnapshot(
 		}
 	}
 	return [...upserts.values()];
+}
+
+interface SetSyncResult {
+	readonly fetched: number;
+	readonly unchanged: number;
+	readonly flaggedMissing: number;
+	readonly failures: readonly string[];
+}
+
+/**
+ * The sets phase: one request per set the corpus references and has no release date for.
+ *
+ * The date is the whole point. `/v2/{lang}/sets/{setId}` is the only endpoint that carries it,
+ * there is no bulk form and no conditional-fetch story, so the cost is one request per set —
+ * 137 on a first sync against the live corpus, zero on a re-sync of an unchanged one.
+ *
+ * The response also carries the set's entire `cards` array, which is ignored: the corpus already
+ * holds every card it wants and re-reading them here would be a second, disagreeing source.
+ *
+ * **A 404 flags rather than deletes**, consistent with how the corpus treats every other upstream
+ * disappearance. A set the owner holds cards from cannot be allowed to take those cards' ordering
+ * with it because upstream renamed an ID.
+ */
+async function syncSets(
+	deps: CorpusSyncDeps,
+	jobId: string,
+	languages: readonly string[],
+	now: () => number,
+	patch: (values: SyncJobPatch) => void,
+): Promise<SetSyncResult> {
+	const { db, client } = deps;
+	const concurrency = deps.concurrency ?? DEFAULT_CONCURRENCY;
+	const pauseMs = deps.pauseMs ?? DEFAULT_PAUSE_MS;
+	const log = deps.log ?? (() => {});
+	const failures: string[] = [];
+
+	const plan = planSetFetches(db, languages);
+	patch({
+		processed: 0,
+		total: plan.wanted.length,
+		message: `${plan.wanted.length} set(s) to fetch, ${plan.satisfied} already dated`,
+	});
+	log(`sets: ${plan.wanted.length} to fetch, ${plan.satisfied} already dated`);
+
+	let fetched = 0;
+	let flaggedMissing = 0;
+	let done = 0;
+
+	await forEachWithConcurrency(plan.wanted, concurrency, async (target) => {
+		try {
+			const detail = await client.getSet(target.language, target.setId);
+			if (detail === null) {
+				flagSetMissingUpstream(db, target, now());
+				flaggedMissing++;
+			} else {
+				upsertSet(db, normaliseSet(target, detail), now());
+				fetched++;
+			}
+		} catch (error) {
+			// A transport failure is not a disappearance. The row is left as it is and the next
+			// sync asks again, because `planSetFetches` still finds no release date for it.
+			failures.push(`set ${target.language}/${target.setId}: ${describe(error)}`);
+		}
+		done++;
+		if (done % PROGRESS_EVERY === 0 || done === plan.wanted.length) {
+			updateSyncJob(
+				db,
+				jobId,
+				{ processed: done, setsFetched: fetched, setsFlaggedMissing: flaggedMissing },
+				now(),
+			);
+		}
+		await sleep(pauseMs);
+	});
+
+	return { fetched, unchanged: plan.satisfied, flaggedMissing, failures };
+}
+
+/**
+ * `TcgdexSetDetail → SetUpsert`.
+ *
+ * `releaseDate` is stored **verbatim as the ISO `YYYY-MM-DD` string upstream sends**. Parsing it
+ * into a `Date` and back would move `1999-06-16` by a day for anybody east or west of UTC, and
+ * the spec is explicit that a calendar date is not an instant.
+ *
+ * `abbreviation` arrives as `{official?, localized?}` and is frequently absent; only the
+ * official form is kept, since the localised one duplicates the set name in most languages.
+ */
+function normaliseSet(target: SetFetchTarget, detail: TcgdexSetDetail) {
+	const releaseDate =
+		typeof detail.releaseDate === "string" && detail.releaseDate !== "" ? detail.releaseDate : null;
+	return {
+		setKey: target.setKey,
+		language: target.language,
+		setId: target.setId,
+		name: detail.name ?? null,
+		releaseDate,
+		serieId: detail.serie?.id ?? null,
+		serieName: detail.serie?.name ?? null,
+		abbreviation: detail.abbreviation?.official ?? null,
+		cardCountTotal: detail.cardCount?.total ?? null,
+	};
 }
 
 interface ImageSyncResult {

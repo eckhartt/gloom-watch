@@ -17,6 +17,7 @@ const PHASE_LABELS: Record<string, string> = {
 	languages: "deriving the language list",
 	brief: "reading the card lists",
 	detail: "reading card detail",
+	sets: "reading set release dates",
 	images: "downloading images",
 	reconcile: "reconciling",
 	done: "done",
@@ -106,6 +107,17 @@ export function CorpusPanel({
 					<Row label="Variants" value={String(data.variants)} />
 					<Row label="Cards" value={String(data.cards)} />
 					<Row label="Languages" value={String(data.languages)} />
+					<Row label="Sets" value={String(data.sets)} />
+					{data.setsWithoutReleaseDate > 0 ? (
+						// The binder orders on the release date and puts undated sets last. A number
+						// here climbing is the only warning that the default order has stopped meaning
+						// what it says for part of the collection.
+						<Row
+							label="Sets with no release date"
+							value={String(data.setsWithoutReleaseDate)}
+							tone="alarm"
+						/>
+					) : null}
 					<Row label="Images" value={`${data.imagesStored} — ${formatBytes(data.imageBytes)}`} />
 					{data.variantsMissingUpstream > 0 ? (
 						<Row

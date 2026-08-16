@@ -13,6 +13,7 @@ import { webpBytes } from "./fake-tcgdex.ts";
  * - a TCG Pocket card with a suffixed set ID
  * - a card with a `dexId` and no English name, and one with an English name and no `dexId`
  * - a card upstream has no image for
+ * - the same set released on different days in two languages, and one set with no date at all
  */
 export const SHARED_VARIANT_ID = "endfynwn4n10gzq";
 
@@ -148,6 +149,43 @@ export function buildFakeCorpus(): FakeCorpus {
 					{ type: "holo", size: "standard", stamp: ["1st edition"], variantId: "generated" },
 				],
 			}),
+		},
+		sets: {
+			// The English and French Jungle are one expansion released ten months apart, which is
+			// exactly why a set's identity carries its language and why the binder cannot order on
+			// a single date per set ID.
+			"en|base2": {
+				id: "base2",
+				name: "Jungle",
+				releaseDate: "1999-06-16",
+				serie: { id: "base", name: "Base" },
+				abbreviation: { official: "JU" },
+				cardCount: { total: 64 },
+			},
+			"fr|base2": {
+				id: "base2",
+				name: "Jungle",
+				releaseDate: "2000-04-01",
+				serie: { id: "base", name: "Base" },
+			},
+			"en|base1": {
+				id: "base1",
+				name: "Base Set",
+				releaseDate: "1999-01-09",
+				serie: { id: "base", name: "Base" },
+			},
+			"ja|SV3": {
+				id: "SV3",
+				name: "黒炎の支配者",
+				releaseDate: "2023-07-28",
+				serie: { id: "SV", name: "スカーレット&バイオレット" },
+			},
+			// Upstream knows the set and carries no date for it. Rare, tolerated, and ordered last.
+			"en|me02.5": {
+				id: "me02.5",
+				name: "Mega Evolution promos",
+				serie: { id: "me", name: "Mega Evolution" },
+			},
 		},
 		manifest: {
 			en: { base: { base2: { "44": "hash-en-base2-44" }, base1: { "45": "hash-en-base1-45" } } },

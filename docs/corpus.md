@@ -14,12 +14,14 @@ brief       per language, the whole brief list, stored        138,909 records
             plus one dexId query per species per language     72 requests
 detail      membership filtered LOCALLY over that store       497 survivors
             detail fetched for survivors only                 497 requests
+sets        one request per (language, set) the cards         137 requests, first sync only
+            landed on, for its release date
 images      one webp BLOB per card, hash-manifest driven      382 images, 26.32 MiB
 reconcile   anything upstream dropped is flagged, never deleted
 ```
 
 A full first sync takes about two minutes; a re-sync with nothing changed takes about
-45 seconds and downloads no images at all.
+45 seconds, downloads no images at all and sends no set requests.
 
 Start it with the button in the app, or from the box:
 
@@ -128,6 +130,45 @@ alone is unrepresentable rather than merely discouraged. The 817 variants in thi
 Hand-added rows take `manual:{uuid}`. `manual` is not a TCGdex language code, and the sync
 asserts on every run that upstream has not started minting one.
 
+## Set release dates
+
+The binder's default order is **set release date descending**, and the date is stored nowhere
+else. Three endpoints were checked against the live API before this phase was built:
+
+| Endpoint | Carries `releaseDate`? |
+| --- | --- |
+| `/v2/{lang}/cards/{id}` — the card's `set` object | **No.** `{id, name, cardCount, logo, symbol}` |
+| `/v2/{lang}/sets` — the set list | **No.** Not on any entry |
+| `/v2/{lang}/series/{id}` | Dates the **series**; lists its sets undated |
+| `/v2/{lang}/sets/{setId}` | **Yes** — plus `serie`, `abbreviation`, `cardCount` |
+
+So there is no bulk form and no conditional-fetch story: the ordering costs one request per set.
+The phase runs **after `detail`**, over the `(language, set_id)` pairs the cards actually landed
+on — **137 pairs**, not the 506 that 46 sets × 11 languages would suggest, because most sets
+exist in only one or two of the languages this line appears in.
+
+**It never asks twice.** A release date is a historical fact, so a set already held with one is
+skipped. A first sync spends 137 requests; a re-sync of an unchanged corpus spends none. Three
+states are re-asked, because each means the fact is still missing: no row, no date on the row, or
+a row flagged `missing_upstream`. That is also what makes the phase resumable — a sync
+interrupted half way through leaves the rows it wrote and the next one picks up the rest.
+
+**Language is part of a set's identity**, held as `set_key = "{language}:{set_id}"`. The Japanese
+`SV3` released on 2023-07-28 and the English `sv03` on 2023-11-03; one row per set ID would order
+one of them by the other's date and be silently wrong.
+
+`release_date` is an **ISO `YYYY-MM-DD` string and never an epoch**. A set released "on 16 June
+1999" was not released at an instant, and `new Date("1999-06-16")` formatted west of UTC reads as
+the 15th. Null is tolerated — upstream dates every set this corpus references today, promos
+included (`miscp` → `1996-01-01`) — and the binder orders undated sets **last**, never first.
+`GET /api/corpus/status` reports how many sets have no date, because a number climbing there is
+the only warning that the default order has stopped meaning what it says.
+
+A set that 404s is **flagged, not deleted**, and a placeholder row is written if there was
+nothing to flag — cards still point at it, and without a row there would be no record that the
+question had already been asked. A set fetch that fails at the transport leaves no row at all and
+is retried next sync; a failure is not a disappearance.
+
 ## Images
 
 One `high.webp` BLOB per **card** record. 382 of the 497 cards have an image upstream;
@@ -175,15 +216,13 @@ After three syncs against the live API:
 | `corpus_cards` (incl. 26.32 MiB of image BLOBs) | 26.71 MiB |
 | `corpus_brief` | 10.35 MiB |
 | `corpus_variants` | 0.13 MiB |
+| `corpus_sets` (137 rows) | negligible |
 
 Comfortably under the spec's 125 MB estimate for the finished application, most of which is owner
 photographs that do not exist yet.
 
 ## Known gaps
 
-- **Set release dates are not stored.** The binder's default order is set release date
-  descending, and the card payload's `set` object carries only `{id, name, cardCount, logo,
-  symbol}`. That needs `/v2/{lang}/sets/{id}` and belongs to whichever ticket needs the ordering.
 - **`ja|E3-003` lists the same variant twice upstream**, with identical `variantId`. Identity is
   `(card, variant_id)`, so it is one row — which is why the corpus holds 817 variants where a
   naive count of `variants_detailed` entries gives 818.

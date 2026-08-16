@@ -5,6 +5,7 @@ import type {
 	TcgdexCardBrief,
 	TcgdexCardDetail,
 	TcgdexClient,
+	TcgdexSetDetail,
 } from "../../server/corpus/tcgdex.ts";
 
 /**
@@ -20,6 +21,8 @@ export interface FakeCorpus {
 	dexIds: Record<string, Record<string, number[]>>;
 	/** `{language}|{cardId}` → detail. */
 	details: Record<string, TcgdexCardDetail>;
+	/** `{language}|{setId}` → set detail. Absent means upstream 404s for that set. */
+	sets: Record<string, TcgdexSetDetail>;
 	manifest: ImageManifest;
 	manifestEtag: string;
 	/** Image URL → bytes. Absent means upstream 404s. */
@@ -28,10 +31,13 @@ export interface FakeCorpus {
 
 export class FakeTcgdexClient implements TcgdexClient {
 	readonly detailRequests: string[] = [];
+	readonly setRequests: string[] = [];
 	readonly imageRequests: string[] = [];
 	manifestRequests = 0;
 	/** Set to make the named language's brief fetch fail, as an upstream outage would. */
 	failBriefFor: Set<string> = new Set();
+	/** `{language}|{setId}` entries whose set fetch should throw, as a transport failure would. */
+	failSetFor: Set<string> = new Set();
 
 	constructor(private readonly corpus: FakeCorpus) {}
 
@@ -58,6 +64,13 @@ export class FakeTcgdexClient implements TcgdexClient {
 	async getCard(language: string, cardId: string): Promise<TcgdexCardDetail | null> {
 		this.detailRequests.push(`${language}|${cardId}`);
 		return this.corpus.details[`${language}|${cardId}`] ?? null;
+	}
+
+	async getSet(language: string, setId: string): Promise<TcgdexSetDetail | null> {
+		const key = `${language}|${setId}`;
+		this.setRequests.push(key);
+		if (this.failSetFor.has(key)) throw new Error(`upstream is down for set ${key}`);
+		return this.corpus.sets[key] ?? null;
 	}
 
 	async fetchImageManifest(etag: string | null): Promise<ManifestFetchResult> {

@@ -60,6 +60,27 @@ export interface TcgdexCardDetail {
 	readonly variants_detailed?: readonly TcgdexVariantDetailed[];
 }
 
+/**
+ * One set, from `/v2/{lang}/sets/{setId}` — the **only** endpoint that carries `releaseDate`.
+ *
+ * Checked against the live API rather than the reference table: the set *list* returns entries
+ * with no date at all, and `/v2/{lang}/series/{id}` dates the series while listing its sets
+ * undated. There is no bulk form, which is why the sets phase is one request per set.
+ *
+ * `cards` is deliberately not modelled. It is the whole set — 141 entries for `ja/SV3` — and the
+ * corpus already holds every card it cares about. Typing it would invite reading it.
+ */
+export interface TcgdexSetDetail {
+	readonly id: string;
+	readonly name?: string;
+	/** ISO `YYYY-MM-DD`. A calendar date; never converted to an instant. */
+	readonly releaseDate?: string;
+	readonly serie?: { readonly id?: string; readonly name?: string };
+	/** An object, not a string: `{official?, localized?}`, and frequently absent entirely. */
+	readonly abbreviation?: { readonly official?: string; readonly localized?: string };
+	readonly cardCount?: { readonly total?: number; readonly official?: number };
+}
+
 /** `language → series → set → localId → hash`. Not keyed by full card ID. */
 export type ImageManifest = Readonly<
 	Record<string, Record<string, Record<string, Record<string, string>>>>
@@ -85,6 +106,8 @@ export interface TcgdexClient {
 	/** The one thing the brief form cannot answer locally: which cards carry a `dexId`. */
 	listCardsByDexId(language: string, dexId: number): Promise<TcgdexCardBrief[]>;
 	getCard(language: string, cardId: string): Promise<TcgdexCardDetail | null>;
+	/** `null` on a 404, which the sets phase flags rather than treats as an error. */
+	getSet(language: string, setId: string): Promise<TcgdexSetDetail | null>;
 	fetchImageManifest(etag: string | null): Promise<ManifestFetchResult>;
 	fetchImage(url: string): Promise<FetchedImage | null>;
 }
@@ -243,6 +266,18 @@ export class HttpTcgdexClient implements TcgdexClient {
 			throw new TcgdexError(`GET ${url} responded ${response.status}`, response.status);
 		}
 		return (await response.json()) as TcgdexCardDetail;
+	}
+
+	async getSet(language: string, setId: string): Promise<TcgdexSetDetail | null> {
+		const url = `${this.apiBase}/${encodeURIComponent(language)}/sets/${encodeURIComponent(setId)}`;
+		const response = await this.request(url);
+		if (response.status === 404) return null;
+		if (!response.ok) {
+			throw new TcgdexError(`GET ${url} responded ${response.status}`, response.status);
+		}
+		// The response also carries the set's whole `cards` array. It is read as JSON and then
+		// discarded field by field into `TcgdexSetDetail`, which does not model it.
+		return (await response.json()) as TcgdexSetDetail;
 	}
 
 	async fetchImageManifest(etag: string | null): Promise<ManifestFetchResult> {

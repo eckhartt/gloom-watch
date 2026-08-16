@@ -3,17 +3,19 @@
  * sequence of phases and the SQL lives in one place.
  */
 
-import { and, count, eq, inArray, isNotNull, ne, type SQL, sql, sum } from "drizzle-orm";
+import { and, count, eq, inArray, isNotNull, isNull, ne, type SQL, sql, sum } from "drizzle-orm";
 import type { GloomDatabase } from "../db/client.ts";
+import type { CorpusSetRow } from "../db/schema.ts";
 import {
 	corpusBrief,
 	corpusCards,
 	corpusExclusions,
+	corpusSets,
 	corpusSyncJobs,
 	corpusVariants,
 } from "../db/schema.ts";
 import type { NormalisedCard } from "./ingest.ts";
-import type { BriefRecord } from "./membership.ts";
+import { type BriefRecord, setKeyFor } from "./membership.ts";
 
 /** SQLite's parameter ceiling is per statement, so bulk inserts go in chunks. */
 const INSERT_CHUNK = 400;
@@ -293,6 +295,167 @@ export function readImageCandidates(
 		);
 }
 
+/* -------------------------------------------------------------------------- */
+/* Sets                                                                        */
+/* -------------------------------------------------------------------------- */
+
+export interface SetFetchTarget {
+	readonly setKey: string;
+	readonly language: string;
+	readonly setId: string;
+}
+
+export interface SetFetchPlan {
+	/** Sets to ask upstream about this run. */
+	readonly wanted: readonly SetFetchTarget[];
+	/** Sets the corpus references and already holds a date for. Nothing is fetched for these. */
+	readonly satisfied: number;
+}
+
+/**
+ * Which sets this sync needs to ask upstream about.
+ *
+ * **A set release date is a historical fact that does not change**, so a set already held with a
+ * date is never re-fetched. That is what makes this phase incremental in the only way it can be:
+ * there is no hash manifest and no conditional-fetch story for `/v2/{lang}/sets/{setId}`, so the
+ * cheapest correct request is the one not sent. A first sync asks about every `(language,
+ * set_id)` pair the corpus references — 137 against the live corpus, not 46 × 11 — and a
+ * re-sync of an unchanged corpus asks about none.
+ *
+ * Three states are re-asked, because each means the fact we came for is missing:
+ *
+ * - no row at all — a set that appeared since the last sync, or a sync interrupted part way
+ *   through this phase, which is what makes it **resumable**: the rows already written stand and
+ *   the next run picks up the remainder;
+ * - a row with no `release_date` — a fetch that succeeded but carried no date, retried in case
+ *   upstream fills it in later;
+ * - a row flagged `missing_upstream` — retried, because a 404 may have been upstream's mistake.
+ *
+ * Scoped to the languages whose detail phase completed, for the same reason the image phase is:
+ * a language whose fetch failed should not have its sets chased or flagged.
+ */
+export function planSetFetches(db: GloomDatabase, languages: readonly string[]): SetFetchPlan {
+	if (languages.length === 0) return { wanted: [], satisfied: 0 };
+
+	const referenced = db
+		.selectDistinct({ language: corpusCards.language, setId: corpusCards.setId })
+		.from(corpusCards)
+		.where(and(ne(corpusCards.provenance, "manual"), inArray(corpusCards.language, [...languages])))
+		.all();
+
+	const held = new Map(
+		db
+			.select({
+				setKey: corpusSets.setKey,
+				releaseDate: corpusSets.releaseDate,
+				missingUpstream: corpusSets.missingUpstream,
+			})
+			.from(corpusSets)
+			.all()
+			.map((row) => [row.setKey, row]),
+	);
+
+	const wanted: SetFetchTarget[] = [];
+	let satisfied = 0;
+	for (const row of referenced) {
+		const setKey = setKeyFor(row.language, row.setId);
+		const existing = held.get(setKey);
+		if (existing !== undefined && existing.releaseDate !== null && existing.missingUpstream === 0) {
+			satisfied++;
+			continue;
+		}
+		wanted.push({ setKey, language: row.language, setId: row.setId });
+	}
+	return { wanted, satisfied };
+}
+
+export interface SetUpsert {
+	readonly setKey: string;
+	readonly language: string;
+	readonly setId: string;
+	readonly name: string | null;
+	/** ISO `YYYY-MM-DD`, or null. Never an epoch. */
+	readonly releaseDate: string | null;
+	readonly serieId: string | null;
+	readonly serieName: string | null;
+	readonly abbreviation: string | null;
+	readonly cardCountTotal: number | null;
+}
+
+/** Same rules as `upsertCard`: keyed on identity, never deletes, never touches a manual row. */
+export function upsertSet(db: GloomDatabase, set: SetUpsert, now: number): void {
+	db.insert(corpusSets)
+		.values({
+			...set,
+			provenance: "tcgdex",
+			missingUpstream: 0,
+			firstSeenAt: now,
+			lastSyncedAt: now,
+		})
+		.onConflictDoUpdate({
+			target: corpusSets.setKey,
+			set: {
+				name: sql`excluded.name`,
+				releaseDate: sql`excluded.release_date`,
+				serieId: sql`excluded.serie_id`,
+				serieName: sql`excluded.serie_name`,
+				abbreviation: sql`excluded.abbreviation`,
+				cardCountTotal: sql`excluded.card_count_total`,
+				// Back from the dead, exactly as a card or a variant is.
+				missingUpstream: sql`0`,
+				missingSince: sql`NULL`,
+				lastSyncedAt: sql`excluded.last_synced_at`,
+			},
+			setWhere: ne(corpusSets.provenance, "manual"),
+		})
+		.run();
+}
+
+/**
+ * A set upstream answered 404 for: **flagged, never deleted**, and a placeholder row is written
+ * when there was nothing to flag.
+ *
+ * The row matters even empty. Cards point at this set and the binder orders on its date, so the
+ * absence has to be visible as data rather than as a missing join — and without a row the next
+ * sync would have no record that the question was already asked and answered with a 404.
+ */
+export function flagSetMissingUpstream(
+	db: GloomDatabase,
+	target: SetFetchTarget,
+	now: number,
+): void {
+	db.insert(corpusSets)
+		.values({
+			setKey: target.setKey,
+			language: target.language,
+			setId: target.setId,
+			provenance: "tcgdex",
+			missingUpstream: 1,
+			missingSince: now,
+			firstSeenAt: now,
+			lastSyncedAt: now,
+		})
+		.onConflictDoUpdate({
+			target: corpusSets.setKey,
+			set: {
+				missingUpstream: sql`1`,
+				// Kept from the first time it vanished, so the stamp says when, not when last seen.
+				missingSince: sql`coalesce(${corpusSets.missingSince}, excluded.missing_since)`,
+				lastSyncedAt: sql`excluded.last_synced_at`,
+			},
+			setWhere: ne(corpusSets.provenance, "manual"),
+		})
+		.run();
+}
+
+/**
+ * Every set row, unfiltered. 137 against the live corpus, so the binder reads them all and
+ * indexes them in memory rather than joining on a concatenation of two columns.
+ */
+export function readSets(db: GloomDatabase): CorpusSetRow[] {
+	return db.select().from(corpusSets).all();
+}
+
 export interface MissingFlagCounts {
 	readonly cards: number;
 	readonly variants: number;
@@ -385,6 +548,9 @@ export interface CorpusTotals {
 	readonly variants: number;
 	readonly variantsMissingUpstream: number;
 	readonly languages: number;
+	readonly sets: number;
+	/** Sets held with no release date — the binder orders these last, so the count is worth seeing. */
+	readonly setsWithoutReleaseDate: number;
 	readonly imagesStored: number;
 	readonly imageBytes: number;
 }
@@ -410,12 +576,18 @@ export function readCorpusTotals(db: GloomDatabase): CorpusTotals {
 		.select({ value: sum(corpusCards.imageByteSize) })
 		.from(corpusCards)
 		.get()?.value;
+	const sets = db.select({ value: count() }).from(corpusSets).get()?.value ?? 0;
+	const undatedSets =
+		db.select({ value: count() }).from(corpusSets).where(isNull(corpusSets.releaseDate)).get()
+			?.value ?? 0;
 
 	return {
 		cards,
 		variants,
 		variantsMissingUpstream: missing,
 		languages,
+		sets,
+		setsWithoutReleaseDate: undatedSets,
 		imagesStored: images,
 		imageBytes: bytes === null || bytes === undefined ? 0 : Number(bytes),
 	};
@@ -511,6 +683,9 @@ export type SyncJobPatch = Partial<{
 	imagesFetched: number;
 	imagesUnchanged: number;
 	imageBytesFetched: number;
+	setsFetched: number;
+	setsUnchanged: number;
+	setsFlaggedMissing: number;
 	unknownAxisValues: string;
 	variantCountBefore: number;
 	variantCountAfter: number;

@@ -262,6 +262,57 @@ export const corpusVariants = sqliteTable(
 export type CorpusVariantRow = typeof corpusVariants.$inferSelect;
 
 /**
+ * One set, in one language — and the only place a **set release date** is stored.
+ *
+ * The binder's default order is set release date descending, and nothing else in the corpus
+ * carries the date. `GET /v2/{lang}/cards/{id}` returns `set: {id, name, cardCount, logo,
+ * symbol}` with no date; `GET /v2/{lang}/sets` omits it from every entry; `GET /v2/{lang}/series
+ * /{id}` dates the *series* and lists its sets undated. Only `GET /v2/{lang}/sets/{setId}`
+ * carries it, one set at a time, which is why this is a table filled by its own sync phase
+ * rather than something the binder route could look up per request.
+ *
+ * **Language is part of identity, exactly as it is on the card.** `set_key` is
+ * `{language}:{set_id}`. The Japanese `SV3` released on 2023-07-28 and the English `sv03` on
+ * 2023-11-03; one row per set ID would pick one of those and be wrong about the other.
+ *
+ * `release_date` is an **ISO `YYYY-MM-DD` string, not an epoch**. It is a calendar date rather
+ * than an instant — a set released "on 16 June 1999" was not released at a moment in UTC — and
+ * the spec's time convention keeps the two apart. ISO dates also sort lexically, which is what
+ * the binder's ordering leans on.
+ *
+ * Null is tolerated and must be: upstream carries a date for every set this corpus references
+ * today, promos included (`miscp` → `1996-01-01`), but nothing guarantees the next one will.
+ *
+ * No index beyond the primary key. The corpus references 137 distinct `(language, set_id)`
+ * pairs; a scan of 137 rows is faster than the branch that would decide to use an index.
+ */
+export const corpusSets = sqliteTable("corpus_sets", {
+	/** `{language}:{set_id}`. Path-encoded wherever it appears in a URL, like `card_key`. */
+	setKey: text("set_key").primaryKey(),
+	language: text("language").notNull(),
+	setId: text("set_id").notNull(),
+	name: text("name"),
+	/** ISO `YYYY-MM-DD`, or null where upstream has no date. **Never an epoch.** */
+	releaseDate: text("release_date"),
+	serieId: text("serie_id"),
+	serieName: text("serie_name"),
+	/** `abbreviation.official` — upstream sends an object, and often sends none at all. */
+	abbreviation: text("abbreviation"),
+	/** `cardCount.total`: how many cards upstream says the set holds, all species. */
+	cardCountTotal: integer("card_count_total"),
+
+	/** `tcgdex` | `manual`. A sync never touches a `manual` row, as with cards and variants. */
+	provenance: text("provenance").notNull(),
+	/** 0/1. A set that 404s is flagged and kept — a card still points at it. */
+	missingUpstream: integer("missing_upstream").notNull().default(0),
+	missingSince: integer("missing_since"),
+	firstSeenAt: integer("first_seen_at").notNull(),
+	lastSyncedAt: integer("last_synced_at").notNull(),
+});
+
+export type CorpusSetRow = typeof corpusSets.$inferSelect;
+
+/**
  * Cards the owner has ruled out of the masterset by hand — a name-sweep false positive, a
  * non-TCG item that slipped through. Applied in phase 1, before any detail is fetched.
  *
@@ -296,7 +347,7 @@ export const corpusSyncJobs = sqliteTable(
 		id: text("id").primaryKey(),
 		/** `running` | `succeeded` | `failed` | `interrupted`. */
 		status: text("status").notNull(),
-		/** `languages` | `brief` | `detail` | `images` | `reconcile` | `done`. */
+		/** `languages` | `brief` | `detail` | `sets` | `images` | `reconcile` | `done`. */
 		phase: text("phase").notNull(),
 		startedAt: integer("started_at").notNull(),
 		/** Advanced on every progress write; how a stalled job is told from a live one. */
@@ -317,6 +368,11 @@ export const corpusSyncJobs = sqliteTable(
 		imagesFetched: integer("images_fetched").notNull().default(0),
 		imagesUnchanged: integer("images_unchanged").notNull().default(0),
 		imageBytesFetched: integer("image_bytes_fetched").notNull().default(0),
+		/** Sets whose detail was fetched this run — 137 on a first sync, normally 0 after. */
+		setsFetched: integer("sets_fetched").notNull().default(0),
+		/** Sets already held with a release date, so not asked about again. */
+		setsUnchanged: integer("sets_unchanged").notNull().default(0),
+		setsFlaggedMissing: integer("sets_flagged_missing").notNull().default(0),
 		/** JSON: axis values that canonicalised to something outside the known vocabulary. */
 		unknownAxisValues: text("unknown_axis_values").notNull().default("[]"),
 		variantCountBefore: integer("variant_count_before"),

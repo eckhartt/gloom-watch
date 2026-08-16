@@ -77,6 +77,15 @@ export function cardKeyFor(language: string, cardId: string): string {
 }
 
 /**
+ * A set's identity, on the same shape as a card's and for the same reason: the Japanese `SV3`
+ * and the English `sv03` are the same expansion released four months apart, and the binder
+ * orders on that date.
+ */
+export function setKeyFor(language: string, setId: string): string {
+	return `${language}:${setId}`;
+}
+
+/**
  * `dexId ∈ {43,44,45,182}` **unioned with** a name-contains sweep, minus TCG Pocket, minus the
  * exclusions table.
  *
