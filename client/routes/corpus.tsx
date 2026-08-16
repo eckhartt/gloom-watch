@@ -43,13 +43,27 @@ function progressOf(job: CorpusSyncJobDocument): string {
 	return `${phase} — ${job.processed} / ${job.total}`;
 }
 
-function jobSummary(job: CorpusSyncJobDocument): string {
+/**
+ * **Do not report a delta in a list of totals.**
+ *
+ * This line read `497 card(s), 817 variant(s), 0 image(s)` after a no-op re-sync, because
+ * `imagesFetched` counts what was *downloaded* and every hash still matched the manifest. Two
+ * totals followed by a delta reads as three totals, and the owner reasonably took it to mean the
+ * corpus had lost its images. A sync that reports zero of something is exactly when a reader
+ * starts looking for data loss, so the number next to "images" has to be how many there are.
+ */
+export function jobSummary(job: CorpusSyncJobDocument): string {
 	if (job.status === "running") return progressOf(job);
 	if (job.status === "interrupted") return "interrupted by a restart";
 	if (job.status === "failed") return job.error ?? "failed";
+
+	const images = job.imagesFetched + job.imagesUnchanged;
+	const fetched =
+		job.imagesFetched === 0 ? "none newly fetched" : `${job.imagesFetched} newly fetched`;
+
 	return (
 		`${job.cardsUpserted} card(s), ${job.variantsUpserted} variant(s), ` +
-		`${job.imagesFetched} image(s)` +
+		`${images} image(s) — ${fetched}` +
 		(job.variantsFlaggedMissing > 0 ? `, ${job.variantsFlaggedMissing} flagged missing` : "")
 	);
 }
