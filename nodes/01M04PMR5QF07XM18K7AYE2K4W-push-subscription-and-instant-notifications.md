@@ -13,7 +13,6 @@ bindings:
   branch: feat/push-transport
 meta:
   ticket: build
-  claimed: push-agent
 ---
 ## What to build
 
