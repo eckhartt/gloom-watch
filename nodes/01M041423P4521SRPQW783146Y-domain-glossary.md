@@ -152,4 +152,53 @@ Priority exists as the dial the notification policy needs against a feed of
 known variant.
 
 A listing is raw observed data, not a claim about the collection. Resolving a
-listing to a variant is a separate, fallible act — see the matching ticket.
+listing to a variant is a separate, fallible act.
+
+Raw listing payloads are retained **90 days** and then deleted, per eBay's
+"intermediate copies" licence. The variant link, confirmations, aliases and
+notification history survive — only eBay's data expires.
+
+## Lot
+
+**A listing offering several cards at once** — detected by multiple line names in
+the title, or by "lot" / "bundle" / "x50" / "bulk" / "collection".
+
+A lot is flagged and surfaced, but **never resolved to a variant**. It is not a
+claim that any particular card is available, and it never marks a variant as
+owned or needed.
+
+## Alias
+
+**A hand-curated mapping from a string seen in the wild to a card in the corpus**
+— for example `クサイハナ` → Gloom (ja).
+
+Aliases are how a correction *generalises*. Confirming an ambiguous listing once
+teaches an alias, and every future listing containing that string parses without
+asking again. This is the mechanism by which the confirm queue shrinks with use.
+
+An alias is **owner-authored data**, not a model trained on eBay content — which
+is what keeps it clear of eBay's prohibition on training algorithms on their
+data, and what makes it debuggable.
+
+## Confirm queue
+
+**Listings the matcher would not place confidently**, held for the owner to
+resolve.
+
+Matching is deliberately **precision-biased**: a wrong auto-match is silent and
+persistent and corrupts have-it/need-it, whereas a queued listing is visible and
+self-correcting. The queue is the pressure valve that makes that bias safe.
+
+**Queue depth is a health signal** — growing fast means the parser needs work.
+
+## Match confidence and matcher version
+
+Every resolved listing records the **confidence** it was matched at and the
+**version of the matcher** that did it.
+
+The version is what makes improvement measurable: a new matcher can be re-run
+over the retained raw listings and compared against the old one's results.
+Without it, the parser could only ever be improved against live traffic.
+
+The confidence **threshold** is a tunable set empirically once real listings
+arrive — the bias is decided, the number is not.
