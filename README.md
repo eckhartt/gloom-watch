@@ -44,10 +44,33 @@ ork frontier 01M04PFVGG             # build tickets takeable right now
 The spec is the build document. It specifies **invariants, not DDL** — the schema
 and the route shapes are the implementer's to write; the constraints are not.
 
+## Running it
+
+Bun is pinned to **1.3.14 exactly**; `bun install` refuses to run under any other version.
+
+```sh
+curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.14"
+
+bun ci                # install exactly what bun.lock says
+bun run build         # build the client into dist/client
+bun run start         # serve the API and the client on http://127.0.0.1:3000
+
+bun run verify        # Bun version, Biome, TypeScript strict, Vitest
+```
+
+`bun run dev` starts Vite on 5173 proxying `/api` to a `bun run dev:server` on 3000. The
+service worker is only registered against the built app, so exercise it through
+`bun run build && bun run start`.
+
+Deploying to the always-on box — Tailscale Serve, systemd and the OS-level cron jobs — is
+[`docs/deploy.md`](docs/deploy.md).
+
 ## Status
 
-Pre-alpha. The spec is frozen and the build queue is published; the first ticket —
-the walking skeleton — has not landed yet.
+Pre-alpha. The spec is frozen and the build queue is published. The walking skeleton's
+software stack is built and tested; it has **not** yet been commissioned on the deployment
+box, so Tailscale Serve, systemd supervision, the `Bun.cron` registration and the Home
+Screen install are all still unproven.
 
 ## Licence
 

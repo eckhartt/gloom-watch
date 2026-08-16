@@ -1,0 +1,64 @@
+# Gloom Watch HTTP server.
+#
+# Supervision splits in two and the halves fail independently. This unit supervises the
+# long-lived HTTP process only. The scheduled jobs are OS-level `Bun.cron` crontab entries that
+# survive restarts and reboots without systemd (`bun run cron:register`), so a dead web server
+# does not stop notifications arriving.
+#
+# Install:
+#   sudo cp deploy/gloom-watch.service /etc/systemd/system/gloom-watch.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now gloom-watch
+#
+# See docs/deploy.md.
+
+[Unit]
+Description=Gloom Watch HTTP server
+Documentation=https://github.com/nicholasbirkbeck/gloom-watch
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gloom
+Group=gloom
+
+# Relative paths in the application resolve from here: `data/gloom-watch.db`, `dist/client`
+# and `drizzle/`. Changing this without also setting GLOOM_WATCH_DB moves the database.
+WorkingDirectory=/opt/gloom-watch
+
+# Root-owned, mode 0600, never committed. systemd reads it as root before dropping to User=,
+# so the service account does not need to be able to read it — which is the point.
+EnvironmentFile=/etc/gloom-watch/gloom-watch.env
+
+# Bun must be installed system-wide, not under a home directory: ProtectHome below hides
+# /home from the service.
+#   curl -fsSL https://bun.sh/install | SUDO=1 BUN_INSTALL=/usr/local bash -s "bun-v1.3.14"
+ExecStart=/usr/local/bin/bun server/index.ts
+
+# Required by the ticket, and the reason no external watchdog is in scope for v1.
+Restart=always
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gloom-watch
+
+# The tailnet is the perimeter, not the only line of defence.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+
+# The database, its WAL and shared-memory files, owner photographs and local backup snapshots.
+# ProtectSystem=strict makes everything else read-only.
+ReadWritePaths=/opt/gloom-watch/data /opt/gloom-watch/backups
+
+[Install]
+WantedBy=multi-user.target
