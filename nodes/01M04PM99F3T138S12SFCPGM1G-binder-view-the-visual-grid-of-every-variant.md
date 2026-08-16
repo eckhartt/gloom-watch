@@ -9,6 +9,8 @@ edges:
     type: implements
   - to: 01M04PM9T9XT74KN0SYZ41ZFC0
     type: blocks
+bindings:
+  branch: feat/binder-view
 meta:
   ticket: build
   claimed: binder-agent
