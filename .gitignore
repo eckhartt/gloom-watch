@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Bun
+.bun/
+
+# Secrets — the environment file is root-owned 0600 on the server and never committed
+.env
+.env.*
+!.env.example
+
+# SQLite — the database, its write-ahead log and shared-memory file
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Runtime data: the corpus image cache, owner photographs, backup snapshots
+data/
+photos/
+backups/
+*.age
+
+# Test and tooling caches
+coverage/
+.vite/
+.vitest/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# macOS
+.DS_Store
