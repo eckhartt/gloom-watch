@@ -9,6 +9,8 @@ edges:
     type: blocks
   - to: 01M03XAA33X9BVPKF8BP747MZV
     type: blocks
+  - to: 01M03XA8CW3DB9JC43TCTEPR8X
+    type: relates
 meta:
   ticket: research
   hitl: no
