@@ -2,7 +2,7 @@
 id: 01M04PM855DTPPT8EY05664CC5
 type: feature
 title: Walking skeleton — server, database and PWA shell on the phone
-status: active
+status: done
 parent: 01M04PFVGGXDDF82HM2NY6J000
 edges:
   - to: 01M04P3SX9KAV082W044TGV9GD
