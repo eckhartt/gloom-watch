@@ -88,8 +88,12 @@ curl -s http://127.0.0.1:3000/api/health
 `Restart=always` with `RestartSec=10` is in the unit and is required.
 
 **Verifies:** *HTTP server runs under systemd with `Restart=always`, `RestartSec=10`.* Confirm
-with `systemctl show gloom-watch -p Restart -p RestartSec`, then `sudo systemctl kill -s KILL
+with `systemctl show gloom-watch -p Restart -p RestartUSec`, then `sudo systemctl kill -s KILL
 gloom-watch` and watch it come back.
+
+Note the property name: the unit declares `RestartSec=10`, but systemd normalises it and
+reports it as `RestartUSec=10s`. Asking for `-p RestartSec` prints nothing at all, which reads
+exactly like a missing directive and is not one.
 
 ## 7. Register the OS-level cron job
 
@@ -134,12 +138,24 @@ tailscale serve status
 
 That issues a certificate for `<host>.<tailnet>.ts.net` and proxies HTTPS to `127.0.0.1:3000`.
 
+The first time Serve is used on a tailnet it prints `Serve is not enabled on your tailnet` with
+a `login.tailscale.com` link. Visit it once to turn the feature on for the tailnet; it is a
+one-time account setting, not a per-machine one.
+
+Serve's configuration persists across reboots on its own — it is stored state rather than a
+running command, so nothing needs to re-establish it at boot.
+
 **Verifies:** *Tailscale Serve fronts the app with a valid certificate.*
 
 Known risk: Tailscale issue 19147 reports an iPhone failing to establish a secure connection to
 a Serve HTTPS endpoint. One report, not general breakage. **Load the site on the iPhone over
 HTTPS once before the first Add to Home Screen** — if it bites, switch ingress and reinstall the
 PWA rather than discovering it after the icon is placed.
+
+**It did not reproduce at commissioning on 2026-08-16**: an iPhone 15 Pro loaded
+`https://htpc.tail594f35.ts.net/` over Serve and installed to the Home Screen without incident.
+That is one box and one handset, so the check above is still worth running on any new origin —
+but the risk is no longer merely accepted on paper.
 
 ## 9. Install on the phone
 

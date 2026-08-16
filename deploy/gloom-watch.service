@@ -14,7 +14,7 @@
 
 [Unit]
 Description=Gloom Watch HTTP server
-Documentation=https://github.com/nicholasbirkbeck/gloom-watch
+Documentation=https://github.com/eckhartt/gloom-watch
 After=network-online.target
 Wants=network-online.target
 
