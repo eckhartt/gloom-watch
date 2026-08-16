@@ -2,7 +2,7 @@
 id: 01M03XA8YSDR7SCNXBVZXM9MS1
 type: decision
 title: Where does the server run, and how does the phone reach it?
-status: proposed
+status: deciding
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M042KP8G0DGKBTRHKXEMCHAY
