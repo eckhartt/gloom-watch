@@ -7,6 +7,7 @@ parent: 01M03X4D6HQESBXXDYYRVBVRDR
 meta:
   ticket: grilling
   hitl: yes
+  claimed: interview-session
 ---
 ## The question
 
