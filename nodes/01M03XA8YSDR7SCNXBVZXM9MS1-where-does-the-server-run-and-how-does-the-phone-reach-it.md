@@ -4,6 +4,9 @@ type: decision
 title: Where does the server run, and how does the phone reach it?
 status: proposed
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+edges:
+  - to: 01M042KP8G0DGKBTRHKXEMCHAY
+    type: blocks
 meta:
   ticket: grilling
   hitl: yes
