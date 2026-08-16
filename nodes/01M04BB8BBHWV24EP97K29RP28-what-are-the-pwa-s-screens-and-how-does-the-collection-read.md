@@ -2,7 +2,7 @@
 id: 01M04BB8BBHWV24EP97K29RP28
 type: decision
 title: What are the PWA's screens, and how does the collection read?
-status: proposed
+status: deciding
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 meta:
   ticket: prototype
