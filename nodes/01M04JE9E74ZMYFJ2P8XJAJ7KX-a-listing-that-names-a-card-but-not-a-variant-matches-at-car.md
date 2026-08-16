@@ -2,7 +2,7 @@
 id: 01M04JE9E74ZMYFJ2P8XJAJ7KX
 type: decision
 title: A listing that names a card but not a variant matches at card grain
-status: proposed
+status: ruled
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M03XA9GZ6ZRV3CBTF2F460EN
