@@ -214,3 +214,15 @@ Without it, the parser could only ever be improved against live traffic.
 
 The confidence **threshold** is a tunable set empirically once real listings
 arrive — the bias is decided, the number is not.
+
+## Outbox
+
+**A queue of writes made while offline**, held in IndexedDB on the phone and
+replayed in order on reconnect.
+
+There is **no database on the phone** and no sync engine. The outbox exists
+because the app's shell loads from cache even when the tailnet is down, so the
+app can be open while the API is unreachable — marking a card owned in that state
+must go somewhere.
+
+Its pending count is surfaced in the app.
