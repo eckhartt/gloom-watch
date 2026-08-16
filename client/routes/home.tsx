@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { fetchHealth } from "../api.ts";
+import { NotificationSection } from "../notifications.tsx";
 import { serviceWorkerScope } from "../pwa.ts";
 
 /**
@@ -95,6 +96,8 @@ export function HomeScreen() {
 					<Row label="Service worker scope" value={scope ?? "not registered"} />
 				</dl>
 			</section>
+
+			<NotificationSection />
 
 			<footer>
 				<p className="muted">

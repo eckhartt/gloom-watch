@@ -3,9 +3,11 @@ import { serveStatic } from "hono/bun";
 import { logger } from "hono/logger";
 import type { HealthDocument } from "../shared/contract.ts";
 import { HEALTH_PATH } from "../shared/contract.ts";
+import { PUSH_BASE_PATH } from "../shared/push.ts";
 import { APP_STATE_KEYS, readAppState, readAppStateNumber } from "./db/app-state.ts";
 import type { DatabaseHandle } from "./db/client.ts";
 import { countAppliedMigrations } from "./db/migrate.ts";
+import { createPushRoutes } from "./push/routes.ts";
 
 export interface AppDependencies {
 	readonly handle: DatabaseHandle;
@@ -15,6 +17,8 @@ export interface AppDependencies {
 	readonly now?: () => number;
 	/** Request logging. On in the server process, off under the test runner. */
 	readonly requestLog?: boolean;
+	/** Injected so a test can supply a VAPID environment without touching `process.env`. */
+	readonly env?: Record<string, string | undefined>;
 }
 
 /**
@@ -50,6 +54,16 @@ export function createApp(deps: AppDependencies): Hono {
 		c.header("Cache-Control", "no-store");
 		return c.json(body);
 	});
+
+	// Mounted before the static handlers, which match `*`.
+	app.route(
+		PUSH_BASE_PATH,
+		createPushRoutes({
+			handle: deps.handle,
+			now,
+			...(deps.env === undefined ? {} : { env: deps.env }),
+		}),
+	);
 
 	// `no-cache` on the worker itself, set before the static handler writes the body.
 	app.use(SERVICE_WORKER_PATH, async (c, next) => {
