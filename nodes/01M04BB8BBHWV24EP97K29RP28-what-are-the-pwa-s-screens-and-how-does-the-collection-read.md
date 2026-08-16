@@ -9,65 +9,40 @@ meta:
   hitl: yes
   claimed: prototype-session
 ---
-## The question
+## Resolution
 
-What are the screens, and how does the collection actually read?
+Three throwaway prototypes were built and **rejected as designs**. The owner's
+reaction to them is the ruling; nothing else from them carries forward.
 
-This was fog while variant granularity and the collection model were open — the
-UI is a view over a schema, and the schema did not exist. **Both are now settled,
-so this is specifiable.**
+### The binder view is the app
 
-## Why it is a prototype ticket, not a grilling one
+The primary surface is a **visual grid of every variant** where owned and needed
+are obvious at a glance. Seeing the collection — and seeing the holes in it — is
+the point of the app, not a side view.
 
-"How should it look" is the wrong question to answer in conversation. Build two
-or three cheap, throwaway screens against real data and react to them. The
-corpus is ~765 rows and already well understood, so a static mock with real card
-names, sets and images is quick to produce.
+### The Gap is a filter, not a screen
 
-## What the surfaces are
+"What I still need" is a **filter over the binder view**, never its own page.
+Same for any other slice.
 
-The decisions on this map have already committed to these, whether or not their
-shape is designed:
+### Interaction opens a bottom sheet
 
-- **The masterset browse view** — ~765 variants, image-heavy, needs
-  virtualisation. Filters over set, language, finish, print variant, owned/needed
-  and priority. Filters live in typed URL search params (`01m03xa8cw`), so a
-  filtered view is shareable and survives reload.
-- **A card / variant detail view** — the corpus image, the owner's own
-  photographs, copies held, and current listings.
-- **The listing feed** — what the scanner found, with have-it/need-it state.
-- **The confirm queue** (`01m03xa9gz`) — confirm / pick-other / not-a-match, plus
-  whatever teaches an alias.
-- **The lots view** (`01m03xa9gz`) — listings flagged as bundles, never resolved
-  to a variant.
-- **Collection entry** — adding a copy, and clone-and-edit for manual variants
-  (`01m03xaamk`).
-- **Health surfaces** — last scan time, last backup verified, corpus last synced,
-  outbox pending count.
+Tapping a card opens a **mobile sheet** rather than navigating away. Keeps the
+binder as the persistent context.
 
-## What to decide
+### Drop the aggregate density map
 
-- **How completion is presented.** Masterset progress by set, by language, by
-  species, or one headline number. This is the emotional core of a masterset
-  tracker and deserves more thought than a progress bar.
-- **Browse-by-set vs browse-by-variant** as the primary axis, given that a card
-  can be up to four rows.
-- **Whether the listing feed is its own view or folded into card pages.**
-- **How a needed card is visually distinguished** from one already owned, at a
-  glance, in a dense grid.
-- **How the notification tap lands** — `navigate` deep-links to a same-origin
-  route, so a listing detail route must exist and resolve on cold load.
-- **How much of this is v1** versus deferred once the loop works.
+The whole-masterset "spread" at the top of the binder — 765 variants rendered as
+a texture — is **not wanted**. No aggregate visual summary above the grid.
 
-## Constraints already fixed
+### Visual style
 
-- Tap targets must be **same-origin and inside the manifest scope**.
-- The manifest icon is the **only** notification icon, so it does real work.
-- Images cache `CacheFirst` with an explicit bulk warm — a dense grid on first
-  load will be network-bound.
-- The outbox surfaces a pending count.
+Follow the **dense, precise, typographic** direction of the "Ledger" prototype,
+not the ornamental binder styling.
 
-## How to resolve
+## Not decided here
 
-Build throwaway screens against real TCGdex data, put them in front of the owner,
-and record what they react to. Do not build production components.
+The prototypes were not good enough to settle anything beyond the above. Still
+open for whoever builds this: how completion is *numerically* presented, the
+layout of the sheet, and the shape of the feed, confirm queue and lots surfaces.
+Do not infer them from the prototypes.
