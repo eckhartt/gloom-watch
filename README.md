@@ -67,10 +67,16 @@ Deploying to the always-on box — Tailscale Serve, systemd and the OS-level cro
 
 ## Status
 
-Pre-alpha. The spec is frozen and the build queue is published. The walking skeleton's
-software stack is built and tested; it has **not** yet been commissioned on the deployment
-box, so Tailscale Serve, systemd supervision, the `Bun.cron` registration and the Home
-Screen install are all still unproven.
+Pre-alpha. The spec is frozen, the build queue is published, and the walking skeleton is
+**commissioned** — running on the always-on box behind Tailscale Serve and installed to the
+owner's Home Screen.
+
+Proved on real hardware rather than asserted: systemd brings the server back from `SIGKILL`,
+an OS-level `Bun.cron` job survives a full reboot and writes to the same SQLite file the
+server reads, and Serve's HTTPS endpoint loads on an iPhone — Tailscale issue 19147 did not
+reproduce.
+
+Nothing of the app itself exists yet. The next slice pulls the masterset from TCGdex.
 
 ## Licence
 
