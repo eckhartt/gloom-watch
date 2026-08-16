@@ -4,6 +4,9 @@ type: decision
 title: A listing that names a card but not a variant matches at card grain
 status: proposed
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+edges:
+  - to: 01M03XA9GZ6ZRV3CBTF2F460EN
+    type: relates
 ---
 ## Resolution
 
