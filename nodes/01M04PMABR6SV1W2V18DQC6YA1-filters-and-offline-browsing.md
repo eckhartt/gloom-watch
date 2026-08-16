@@ -7,6 +7,8 @@ parent: 01M04PFVGGXDDF82HM2NY6J000
 edges:
   - to: 01M04P3SX9KAV082W044TGV9GD
     type: implements
+bindings:
+  branch: feat/filters-offline
 meta:
   ticket: build
   claimed: filters-agent
