@@ -2,7 +2,7 @@
 id: 01M04K28T8A6637RDQ5TNCDSR9
 type: decision
 title: Condition ladder is retained, but the eBay-vocabulary claim is withdrawn
-status: proposed
+status: ruled
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M03XA7TY3EEWANSAG7KZSS3Y
