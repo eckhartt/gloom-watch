@@ -11,6 +11,8 @@ edges:
     type: blocks
   - to: 01M04PMPHBTEM7KP49Y0153B2N
     type: blocks
+bindings:
+  branch: feat/corpus-ingest
 meta:
   ticket: build
   claimed: corpus-agent
