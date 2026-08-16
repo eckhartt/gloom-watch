@@ -191,6 +191,18 @@ self-correcting. The queue is the pressure valve that makes that bias safe.
 
 **Queue depth is a health signal** — growing fast means the parser needs work.
 
+## Digest
+
+**A batched summary notification** covering everything that qualified since the
+last one. Two per day by default, times configurable.
+
+A digest **summarises**; it does not queue. That distinction is structural, not
+stylistic: **APNs stores exactly one message while the phone is offline**, so
+five instant pushes during a tunnel journey become one arrival and four silent
+losses. A digest survives the same journey intact.
+
+High-priority variants bypass the digest and push instantly.
+
 ## Match confidence and matcher version
 
 Every resolved listing records the **confidence** it was matched at and the
