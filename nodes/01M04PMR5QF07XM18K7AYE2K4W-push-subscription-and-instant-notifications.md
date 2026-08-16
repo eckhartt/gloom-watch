@@ -2,7 +2,7 @@
 id: 01M04PMR5QF07XM18K7AYE2K4W
 type: feature
 title: Push transport and subscription
-status: active
+status: done
 parent: 01M04PFVGGXDDF82HM2NY6J000
 edges:
   - to: 01M04P3SX9KAV082W044TGV9GD
