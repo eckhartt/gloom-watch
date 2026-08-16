@@ -2,7 +2,7 @@
 id: 01M04NWW7NRF62SEBV27ZKED59
 type: decision
 title: Aliases may resolve to a variant, not only a card
-status: proposed
+status: ruled
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M04JE9E74ZMYFJ2P8XJAJ7KX
