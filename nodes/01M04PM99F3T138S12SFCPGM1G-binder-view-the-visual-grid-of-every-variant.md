@@ -13,7 +13,6 @@ bindings:
   branch: feat/binder-view
 meta:
   ticket: build
-  claimed: binder-agent
 ---
 ## What to build
 
