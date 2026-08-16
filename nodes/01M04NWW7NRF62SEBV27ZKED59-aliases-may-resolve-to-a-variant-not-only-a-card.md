@@ -4,6 +4,9 @@ type: decision
 title: Aliases may resolve to a variant, not only a card
 status: proposed
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+edges:
+  - to: 01M04JE9E74ZMYFJ2P8XJAJ7KX
+    type: supersedes
 ---
 ## Resolution
 
