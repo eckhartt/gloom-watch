@@ -4,6 +4,9 @@ type: decision
 title: missing_upstream variants leave the completion denominator unless owned
 status: proposed
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+edges:
+  - to: 01M03XAAMK96EN2TFBHEYGABXQ
+    type: relates
 ---
 ## Resolution
 
