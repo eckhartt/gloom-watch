@@ -11,6 +11,8 @@ edges:
     type: blocks
   - to: 01M04PMC04HN86FCJBYA2XW8D0
     type: blocks
+bindings:
+  branch: feat/walking-skeleton
 meta:
   ticket: build
   claimed: skeleton-agent
