@@ -15,5 +15,5 @@
     "vite.config.ts",
     "vitest.config.ts"
   ],
-  "exclude": ["tests/sw/**/*.ts"]
+  "exclude": ["tests/sw/**/*.ts", "tests/client/**/*.ts"]
 }

@@ -36,23 +36,74 @@ export interface PushEnvironment {
 	readonly ready: boolean;
 }
 
-function hasNotificationGlobal(): boolean {
-	// `typeof` rather than `"Notification" in window`: on iOS outside an installed web app the
-	// identifier is not merely absent, and `typeof` is the one form that cannot throw.
-	return typeof Notification !== "undefined";
+/**
+ * What the platform actually offers, gathered from the globals in one place so the decision made
+ * from it can be exercised by a test without a browser.
+ */
+export interface PushPlatformFacts {
+	/** Any non-`browser` display mode, or Safari's older `navigator.standalone`. */
+	readonly standalone: boolean;
+	readonly serviceWorker: boolean;
+	readonly pushManager: boolean;
+	/**
+	 * Null when the `Notification` global is absent — which on iOS is the case for a Home Screen
+	 * bookmark rather than a web app, and is not the same thing as the owner having said no.
+	 */
+	readonly notification: {
+		readonly permission: NotificationPermission;
+		/** `navigate` on `Notification.prototype`. See `detectTransport` for why it stands in. */
+		readonly declarative: boolean;
+	} | null;
 }
 
-function isStandalone(): boolean {
-	if (typeof window === "undefined") return false;
+/**
+ * **Standalone display mode and the Push API are both required, and neither implies the other.**
+ *
+ * iOS 26 lets the user turn "Open as Web App" off at install time, which produces a Home Screen
+ * icon that opens in Safari: a bookmark with no Push API and no `Notification` global. Checking
+ * only the display mode would call that ready and then fail at `subscribe()` with no explanation
+ * the owner could act on.
+ */
+export function describePushEnvironment(facts: PushPlatformFacts): PushEnvironment {
+	const notificationSupported = facts.notification !== null;
+
+	return {
+		standalone: facts.standalone,
+		serviceWorkerSupported: facts.serviceWorker,
+		pushSupported: facts.pushManager,
+		notificationSupported,
+		transport: facts.notification?.declarative === true ? "declarative" : "classic",
+		permission: facts.notification?.permission ?? "unavailable",
+		ready: facts.standalone && facts.serviceWorker && facts.pushManager && notificationSupported,
+	};
+}
+
+/**
+ * Read the globals. Every access is guarded, because on iOS outside an installed web app the
+ * `Notification` identifier is not merely absent — referencing it throws — and `typeof` is the
+ * one form that cannot.
+ */
+export function readPushPlatformFacts(): PushPlatformFacts {
 	const displayModes = ["standalone", "fullscreen", "minimal-ui"];
-	if (
-		typeof window.matchMedia === "function" &&
-		displayModes.some((mode) => window.matchMedia(`(display-mode: ${mode})`).matches)
-	) {
-		return true;
-	}
-	// Safari's own flag, which predates `display-mode` and is still what older iOS sets.
-	return (navigator as Navigator & { standalone?: boolean }).standalone === true;
+	const standalone =
+		typeof window !== "undefined" &&
+		((typeof window.matchMedia === "function" &&
+			displayModes.some((mode) => window.matchMedia(`(display-mode: ${mode})`).matches)) ||
+			// Safari's own flag, which predates `display-mode` and is still what older iOS sets.
+			(navigator as Navigator & { standalone?: boolean }).standalone === true);
+
+	return {
+		standalone,
+		serviceWorker: typeof navigator !== "undefined" && "serviceWorker" in navigator,
+		pushManager: typeof window !== "undefined" && "PushManager" in window,
+		notification:
+			typeof Notification === "undefined"
+				? null
+				: {
+						permission: Notification.permission,
+						declarative: "navigate" in Notification.prototype,
+					},
+	};
 }
 
 /**
@@ -68,25 +119,11 @@ function isStandalone(): boolean {
  * declarative payload too, so the notification still displays.
  */
 export function detectTransport(): PushTransport {
-	if (!hasNotificationGlobal()) return "classic";
-	return "navigate" in Notification.prototype ? "declarative" : "classic";
+	return describePushEnvironment(readPushPlatformFacts()).transport;
 }
 
 export function readPushEnvironment(): PushEnvironment {
-	const standalone = isStandalone();
-	const serviceWorkerSupported = typeof navigator !== "undefined" && "serviceWorker" in navigator;
-	const pushSupported = typeof window !== "undefined" && "PushManager" in window;
-	const notificationSupported = hasNotificationGlobal();
-
-	return {
-		standalone,
-		serviceWorkerSupported,
-		pushSupported,
-		notificationSupported,
-		transport: detectTransport(),
-		permission: notificationSupported ? Notification.permission : "unavailable",
-		ready: standalone && serviceWorkerSupported && pushSupported && notificationSupported,
-	};
+	return describePushEnvironment(readPushPlatformFacts());
 }
 
 export async function fetchPushConfig(signal?: AbortSignal): Promise<PushConfigDocument> {
