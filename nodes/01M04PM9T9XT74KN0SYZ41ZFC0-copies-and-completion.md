@@ -17,6 +17,7 @@ edges:
     type: blocks
 meta:
   ticket: build
+  claimed: copies-agent
 ---
 ## What to build
 
