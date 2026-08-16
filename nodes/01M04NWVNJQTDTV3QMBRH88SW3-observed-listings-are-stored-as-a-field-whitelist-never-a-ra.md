@@ -4,6 +4,9 @@ type: decision
 title: Observed listings are stored as a field whitelist, never a raw payload
 status: proposed
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+edges:
+  - to: 01M03XA9GZ6ZRV3CBTF2F460EN
+    type: relates
 ---
 ## Resolution
 
