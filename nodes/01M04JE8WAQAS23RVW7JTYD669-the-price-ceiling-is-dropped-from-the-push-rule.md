@@ -4,6 +4,9 @@ type: decision
 title: The price ceiling is dropped from the push rule
 status: proposed
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+edges:
+  - to: 01M03XAA33X9BVPKF8BP747MZV
+    type: supersedes
 ---
 ## Resolution
 
