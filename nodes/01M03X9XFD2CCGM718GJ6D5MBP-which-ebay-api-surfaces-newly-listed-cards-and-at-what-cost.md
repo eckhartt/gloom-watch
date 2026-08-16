@@ -2,7 +2,7 @@
 id: 01M03X9XFD2CCGM718GJ6D5MBP
 type: decision
 title: Which eBay API surfaces newly-listed cards, and at what cost?
-status: deciding
+status: ruled
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M03XA9GZ6ZRV3CBTF2F460EN
