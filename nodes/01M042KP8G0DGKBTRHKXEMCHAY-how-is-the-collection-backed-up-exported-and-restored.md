@@ -34,6 +34,10 @@ now because we know exactly what is irreplaceable and what is not.
 - **manually added variants** — Korean, Simplified Chinese, "The Best of XY" —
   which have no upstream source at all
 - **priority flags** on variants
+- **the matcher alias table and the owner's match confirmations** — hand-curated
+  over months of using the confirm queue, with no upstream source. Losing them
+  does not just lose data: it resets the matcher's accuracy to day one and
+  re-floods the queue with questions already answered once.
 
 ## What to decide
 
