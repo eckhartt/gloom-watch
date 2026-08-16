@@ -7,16 +7,17 @@ import {
 	precacheAndRoute,
 } from "workbox-precaching";
 import { NavigationRoute, registerRoute } from "workbox-routing";
+import { registerPushHandlers } from "./sw/push-handler.ts";
 
 /**
  * Hand-authored service worker, built in `injectManifest` mode.
  *
  * `generateSW` was rejected outright: Workbox's generated worker cannot host a custom `push`
- * handler, and a later ticket needs one. When that handler arrives it must call
- * `showNotification()` **unconditionally, from the encrypted payload, inside `waitUntil()`** and
- * **never after a fetch to the origin** — three silent-push failures revoke every subscription
- * for the origin, the counter never decays, and the only route back is a full unsubscribe and
- * re-subscribe.
+ * handler, and this is where that handler lives. It calls `showNotification()` **unconditionally,
+ * from the encrypted payload, inside `waitUntil()`** and **never after a fetch to the origin** —
+ * three silent-push failures revoke every subscription for the origin, the counter never decays,
+ * and the only route back is a full unsubscribe and re-subscribe. The shape that guarantees it is
+ * in `client/sw/push-handler.ts` and is asserted by `tests/sw/push-handler.test.ts`.
  *
  * The registration scope is `/` and must never move: push subscriptions key to the scope, not
  * merely to the origin.
@@ -41,3 +42,7 @@ registerRoute(
 		denylist: [/^\/api\//],
 	}),
 );
+
+// Registered last, but nothing above it can defer or intercept a `push` event — the routes are
+// `fetch` handlers and the precache is already warm by then.
+registerPushHandlers(self);

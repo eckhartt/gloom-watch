@@ -8,5 +8,5 @@
     "rootDir": "."
   },
   "include": ["client/**/*.ts", "client/**/*.tsx", "shared/**/*.ts"],
-  "exclude": ["client/sw.ts"]
+  "exclude": ["client/sw.ts", "client/sw/**/*.ts"]
 }

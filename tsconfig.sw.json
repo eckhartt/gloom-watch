@@ -6,5 +6,5 @@
     "outDir": "dist/types/sw",
     "rootDir": "."
   },
-  "include": ["client/sw.ts"]
+  "include": ["client/sw.ts", "client/sw/**/*.ts", "shared/**/*.ts", "tests/sw/**/*.ts"]
 }
