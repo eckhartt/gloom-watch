@@ -4,6 +4,9 @@ type: decision
 title: Runtime is Bun 1.3.14 stable — Bun 1.4 was never published
 status: proposed
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
+edges:
+  - to: 01M03XA8CW3DB9JC43TCTEPR8X
+    type: supersedes
 ---
 ## Resolution
 
