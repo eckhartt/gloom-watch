@@ -14,6 +14,7 @@ edges:
 meta:
   ticket: grilling
   hitl: yes
+  claimed: interview-session
 ---
 ## The question
 
