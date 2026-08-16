@@ -7,6 +7,8 @@ parent: 01M03X4D6HQESBXXDYYRVBVRDR
 edges:
   - to: 01M03XAAMK96EN2TFBHEYGABXQ
     type: blocks
+  - to: 01M042KP8G0DGKBTRHKXEMCHAY
+    type: blocks
 meta:
   ticket: grilling
   hitl: yes
