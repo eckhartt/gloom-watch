@@ -2,7 +2,7 @@
 id: 01M03XAA33X9BVPKF8BP747MZV
 type: decision
 title: What earns a push notification, and what does it say?
-status: deciding
+status: ruled
 parent: 01M03X4D6HQESBXXDYYRVBVRDR
 meta:
   ticket: grilling
