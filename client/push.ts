@@ -1,3 +1,4 @@
+import { UNLOCK_PATH } from "../shared/gate.ts";
 import type {
 	PushConfigDocument,
 	PushSubscriptionDocument,
@@ -142,6 +143,9 @@ export async function fetchPushConfig(signal?: AbortSignal): Promise<PushConfigD
 		headers: { accept: "application/json" },
 		...(signal ? { signal } : {}),
 	});
+	if (response.status === 401 && typeof window !== "undefined") {
+		window.location.assign(UNLOCK_PATH);
+	}
 	if (!response.ok) {
 		throw new ApiError(response.status, `GET ${PUSH_CONFIG_PATH} responded ${response.status}`);
 	}

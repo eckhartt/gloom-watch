@@ -62,9 +62,13 @@ sudo nano /etc/gloom-watch/gloom-watch.env
 Set `GLOOM_WATCH_TIMEZONE` to the box's IANA timezone name. It is applied on **first boot
 only**; afterwards the database is authoritative and the variable is ignored.
 
-Set `GLOOM_WATCH_ORIGIN` to the Tailscale Serve origin including the scheme —
-`https://htpc.tail594f35.ts.net`. A notification's tap target is built from it, by a process
-that may have no HTTP request to read a `Host` header from.
+Set `GLOOM_WATCH_ORIGIN` to the **public** HTTPS origin including the scheme —
+`https://cards.example`. A notification's tap target is built from it, by a process
+that may have no HTTP request to read a `Host` header from. The phone lives on this
+origin, not on the Tailscale Serve name.
+
+Set `GLOOM_WATCH_SHARED_SECRET` to a long random string. The unlock form at `/unlock`
+is the gate; `/api` is 401 without the cookie.
 
 **The mode is `0640` with group `gloom`, not `0600` root-only.** systemd still reads it as root
 before dropping privileges, so the service account gains nothing it did not have. But the
@@ -180,27 +184,37 @@ curl -s http://127.0.0.1:3000/api/health
 three-argument form works on this box.* Reboot and confirm the crontab entry is still there and
 the heartbeat resumes.
 
-## 7a. eBay production keyset
+## 7a. eBay production keyset and the public callback
 
 The scanner cannot finish a real cycle without a production application keyset. Sandbox
 listings are not the live market.
 
-A keyset is not live until the owner **opts out** of marketplace account-deletion
-notifications. Subscribing requires a publicly reachable HTTPS endpoint and would kill
-tailnet-only hosting. Do not subscribe.
+The keyset is unlocked by **subscribing** to marketplace account-deletion notifications
+(*The origin is a public hostname; we subscribe…*, `01m0a72t2k`). Opt-out is no longer the
+path.
 
-```sh
-sudo nano /etc/gloom-watch/gloom-watch.env
-# set EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, RELIST_HASH_SALT
-# RELIST_HASH_SALT is any long random string; generate once and keep it.
-# Losing it on restore makes every stored seller hash stop matching.
-```
+1. Point a public hostname at this box and terminate TLS. Reverse-proxy to
+   `127.0.0.1:3000`. Set `GLOOM_WATCH_ORIGIN` to that origin and
+   `GLOOM_WATCH_SHARED_SECRET` to a long random string.
+2. Generate a 32–80 character verification token. Put it in
+   `EBAY_NOTIFICATION_VERIFICATION_TOKEN`.
+3. In the eBay developer portal, subscribe. The endpoint URL is
+   `$GLOOM_WATCH_ORIGIN/api/ebay/marketplace-account-deletion` — **exactly**, no trailing
+   slash, same scheme and host. Paste the same verification token.
+4. eBay GETs that URL with `challenge_code`. The app answers
+   `{ "challengeResponse": "<sha256 hex>" }`. When that succeeds the production keyset
+   enables.
+5. Set `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET`, `RELIST_HASH_SALT` in the environment
+   file. `RELIST_HASH_SALT` is any long random string; generate once and keep it.
 
-The cron job reads this file itself — it does not inherit systemd's `EnvironmentFile`. Confirm
-the `gloom` account can open it (`0640`, group `gloom`) before waiting on a cycle.
+The cron job reads this file itself — it does not inherit systemd's `EnvironmentFile`.
 
 After the first successful cycle, `/feed` shows listings with a "seen at" stamp and an outbound
 link. Prices older than six hours are omitted and the age is disclosed.
+
+A deletion notification HMACs the username and drops matching listing rows. The username
+is never stored. Re-add the Home Screen icon on the **new** origin; the tailnet one is
+dead.
 
 A settings screen that later edits `scan_interval_minutes` or `digest_times` must re-run this
 registration, or the stored value and the running job disagree silently.

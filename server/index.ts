@@ -33,7 +33,12 @@ if (interrupted > 0) {
 	console.warn(`marked ${interrupted} corpus sync job(s) interrupted by a restart`);
 }
 
-const app = createApp({ handle, clientDir: config.clientDir, requestLog: true });
+const app = createApp({
+	handle,
+	clientDir: config.clientDir,
+	requestLog: true,
+	publicOrigin: config.publicOrigin,
+});
 
 // An unbuilt client is a 404 on every page and nothing in the log to explain it. Say so once,
 // rather than letting a commissioning session lose an hour to it.

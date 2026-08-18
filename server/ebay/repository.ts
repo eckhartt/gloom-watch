@@ -198,6 +198,24 @@ export function upsertObserved(
  * The seen-set is not touched. That is the whole of the retention rule: eBay content expires,
  * the opaque item id does not.
  */
+/**
+ * Drop listing rows whose seller hash matches a deletion notification.
+ *
+ * The seen-set is not touched — it holds no eBay user data. The incoming username never
+ * enters this function; the caller hashes it first.
+ */
+export function deleteListingsBySellerHash(db: GloomDatabase, sellerHash: string): number {
+	const doomed = db
+		.select({ itemId: listings.itemId })
+		.from(listings)
+		.where(eq(listings.sellerHash, sellerHash))
+		.all();
+	if (doomed.length > 0) {
+		db.delete(listings).where(eq(listings.sellerHash, sellerHash)).run();
+	}
+	return doomed.length;
+}
+
 export function expireListings(db: GloomDatabase, now: number): number {
 	const cutoff = now - LISTING_RETENTION_MS;
 	const doomed = db

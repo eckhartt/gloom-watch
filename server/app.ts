@@ -3,6 +3,7 @@ import { serveStatic } from "hono/bun";
 import { logger } from "hono/logger";
 import type { HealthDocument } from "../shared/contract.ts";
 import { HEALTH_PATH } from "../shared/contract.ts";
+import { UNLOCK_API_PATH, UNLOCK_PATH } from "../shared/gate.ts";
 import { PUSH_BASE_PATH } from "../shared/push.ts";
 import { createBinderRoutes } from "./binder/http.ts";
 import { createCopyRoutes } from "./copies/http.ts";
@@ -13,7 +14,15 @@ import { APP_STATE_KEYS, readAppState, readAppStateNumber } from "./db/app-state
 import type { DatabaseHandle } from "./db/client.ts";
 import { countAppliedMigrations } from "./db/migrate.ts";
 import { createListingRoutes } from "./ebay/http.ts";
+import { createNotificationRoutes } from "./ebay/notifications.ts";
 import { readScanHealth } from "./ebay/repository.ts";
+import {
+	attachGateCookie,
+	clearGateCookie,
+	gateMiddleware,
+	readSharedSecret,
+	unlockPageHtml,
+} from "./gate.ts";
 import { createPushRoutes } from "./push/routes.ts";
 
 export interface AppDependencies {
@@ -31,6 +40,8 @@ export interface AppDependencies {
 	 * its own so the HTTP layer can be exercised without the network.
 	 */
 	readonly startCorpusSync?: CorpusSyncStarter;
+	/** Public origin, used for the eBay challenge hash and the Secure cookie flag. */
+	readonly publicOrigin?: string;
 }
 
 /**
@@ -40,17 +51,83 @@ export interface AppDependencies {
 export const SERVICE_WORKER_PATH = "/sw.js";
 export const SERVICE_WORKER_CACHE_CONTROL = "no-cache";
 
+function emptyToNull(value: string | undefined): string | null {
+	return value !== undefined && value !== "" ? value : null;
+}
+
+async function readOfferedSecret(c: {
+	req: {
+		header: (name: string) => string | undefined;
+		parseBody: () => Promise<unknown>;
+		json: () => Promise<unknown>;
+	};
+}): Promise<string | null> {
+	const contentType = c.req.header("content-type") ?? "";
+	if (contentType.includes("application/json")) {
+		try {
+			const body = (await c.req.json()) as { secret?: unknown };
+			return typeof body.secret === "string" ? body.secret : null;
+		} catch {
+			return null;
+		}
+	}
+	const body = (await c.req.parseBody()) as Record<string, unknown>;
+	const value = body.secret;
+	return typeof value === "string" ? value : null;
+}
+
 /**
  * Build the HTTP app. Kept separate from the process entry point so tests can exercise real
  * handlers against a real migrated SQLite database — the spec forbids mocking the database.
  */
 export function createApp(deps: AppDependencies): Hono {
 	const now = deps.now ?? (() => Date.now());
+	const env = deps.env ?? process.env;
+	const publicOrigin = deps.publicOrigin ?? "http://127.0.0.1:3000";
+	const secret = readSharedSecret(env);
 	const app = new Hono();
 
 	if (deps.requestLog ?? false) {
 		app.use("*", logger());
 	}
+
+	app.use("*", gateMiddleware(secret));
+
+	app.get(UNLOCK_PATH, (c) => {
+		c.header("Cache-Control", "no-store");
+		return c.html(unlockPageHtml());
+	});
+
+	app.post(UNLOCK_API_PATH, async (c) => {
+		c.header("Cache-Control", "no-store");
+		if (secret === null) {
+			return c.json({ error: "no shared secret is configured" }, 503);
+		}
+		const offered = await readOfferedSecret(c);
+		if (offered === null || offered !== secret) {
+			return c.html(
+				unlockPageHtml().replace("</form>", '<p class="error">That is not the secret.</p></form>'),
+				401,
+			);
+		}
+		attachGateCookie(c, secret, publicOrigin);
+		return c.redirect("/", 303);
+	});
+
+	app.post(`${UNLOCK_API_PATH}/clear`, (c) => {
+		clearGateCookie(c, publicOrigin);
+		return c.redirect(UNLOCK_PATH, 303);
+	});
+
+	app.route(
+		"/",
+		createNotificationRoutes({
+			db: deps.handle.db,
+			publicOrigin,
+			verificationToken: emptyToNull(env.EBAY_NOTIFICATION_VERIFICATION_TOKEN),
+			relistHashSalt: emptyToNull(env.RELIST_HASH_SALT),
+		}),
+	);
 
 	app.get(HEALTH_PATH, (c) => {
 		const db = deps.handle.db;
