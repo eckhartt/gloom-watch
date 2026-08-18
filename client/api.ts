@@ -29,6 +29,8 @@ import {
 	PRIORITIES_PATH,
 	variantCopiesPath,
 } from "../shared/copies.ts";
+import type { ListingDocument, ListingsDocument } from "../shared/listings.ts";
+import { LISTINGS_PATH, listingPath } from "../shared/listings.ts";
 
 export class ApiError extends Error {
 	readonly status: number;
@@ -162,4 +164,12 @@ export function fetchCompletion(signal?: AbortSignal): Promise<CompletionDocumen
 
 export function setVariantPriority(request: PriorityRequest): Promise<PriorityDocument> {
 	return sendJson<PriorityDocument>(PRIORITIES_PATH, "PUT", request);
+}
+
+export function fetchListings(signal?: AbortSignal): Promise<ListingsDocument> {
+	return getJson<ListingsDocument>(LISTINGS_PATH, signal);
+}
+
+export function fetchListing(itemId: string, signal?: AbortSignal): Promise<ListingDocument> {
+	return getJson<ListingDocument>(listingPath(itemId), signal);
 }

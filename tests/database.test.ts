@@ -69,6 +69,54 @@ describe("the committed migration", () => {
 		temp.dispose();
 	});
 
+	it("creates listings as a field whitelist with no seller username column", () => {
+		const columns = temp.handle.sqlite
+			.query<{ name: string }, []>("PRAGMA table_info(listings)")
+			.all()
+			.map((c) => c.name);
+
+		expect(columns).toEqual([
+			"item_id",
+			"marketplace",
+			"title",
+			"price_minor",
+			"currency",
+			"buying_option",
+			"condition_id",
+			"item_web_url",
+			"item_location_country",
+			"item_origin_date",
+			"observed_at",
+			"seller_hash",
+			"aspects",
+		]);
+		expect(columns.some((name) => name.includes("seller") && name !== "seller_hash")).toBe(false);
+		expect(columns.some((name) => name.includes("username"))).toBe(false);
+	});
+
+	it("creates a seen-set that cannot expire with the listings", () => {
+		const columns = temp.handle.sqlite
+			.query<{ name: string }, []>("PRAGMA table_info(seen_items)")
+			.all()
+			.map((c) => c.name);
+		expect(columns).toEqual(["item_id", "first_seen_at", "last_seen_at"]);
+	});
+
+	it("creates per-marketplace scan cursors", () => {
+		const columns = temp.handle.sqlite
+			.query<{ name: string }, []>("PRAGMA table_info(scan_cursors)")
+			.all()
+			.map((c) => c.name);
+		expect(columns).toEqual([
+			"marketplace",
+			"last_scanned_at",
+			"last_success_at",
+			"consecutive_failures",
+			"category_id",
+			"updated_at",
+		]);
+	});
+
 	it("creates app_state with the expected columns", () => {
 		const columns = temp.handle.sqlite
 			.query<{ name: string; type: string; notnull: number; pk: number }, []>(

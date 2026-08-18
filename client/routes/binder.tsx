@@ -325,9 +325,14 @@ export function BinderScreen() {
 			    cards came back: a count of needed cards is the completion figure in disguise. */}
 			<div className="binder-bar">
 				<span className="binder-wordmark">Gloom Watch</span>
-				<Link to="/status" className="binder-link">
-					status
-				</Link>
+				<span className="binder-links">
+					<Link to="/feed" className="binder-link">
+						feed
+					</Link>
+					<Link to="/status" className="binder-link">
+						status
+					</Link>
+				</span>
 			</div>
 
 			<div className="binder-filter-bar">

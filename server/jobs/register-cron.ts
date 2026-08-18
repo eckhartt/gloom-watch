@@ -25,14 +25,20 @@ export interface CronRegistration {
 }
 
 /**
- * The skeleton registers one job. Later tickets add the scanner (`scan_interval_minutes`), the
- * two digests (`digest_times`) and the backup, each as its own module and its own title.
+ * Heartbeat plus the forward scanner. Later tickets add the two digests (`digest_times`) and
+ * the backup, each as its own module and its own title. Changing `scan_interval_minutes`
+ * later must re-run this, or the stored setting and the crontab silently disagree.
  */
 export const CRON_REGISTRATIONS: readonly CronRegistration[] = [
 	{
 		module: "heartbeat.ts",
 		schedule: "*/10 * * * *",
 		title: "gloom-watch-heartbeat",
+	},
+	{
+		module: "scan.ts",
+		schedule: "*/10 * * * *",
+		title: "gloom-watch-scan",
 	},
 ];
 

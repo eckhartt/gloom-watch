@@ -12,6 +12,8 @@ import { defaultCorpusSyncStarter } from "./corpus/runner.ts";
 import { APP_STATE_KEYS, readAppState, readAppStateNumber } from "./db/app-state.ts";
 import type { DatabaseHandle } from "./db/client.ts";
 import { countAppliedMigrations } from "./db/migrate.ts";
+import { createListingRoutes } from "./ebay/http.ts";
+import { readScanHealth } from "./ebay/repository.ts";
 import { createPushRoutes } from "./push/routes.ts";
 
 export interface AppDependencies {
@@ -60,6 +62,7 @@ export function createApp(deps: AppDependencies): Hono {
 			migrationsApplied: countAppliedMigrations(deps.handle),
 			corpusLastSyncedAt: readLastSuccessfulSyncAt(db),
 			corpusVariantCount: countVariants(db),
+			scan: readScanHealth(db, now()),
 			serverTimeMs: now(),
 		};
 		// The binder document is cacheable and revalidates on an ETag; health never is.
@@ -80,6 +83,8 @@ export function createApp(deps: AppDependencies): Hono {
 	app.route("/", createBinderRoutes({ db: deps.handle.db, now }));
 
 	app.route("/", createCopyRoutes({ db: deps.handle.db, now }));
+
+	app.route("/", createListingRoutes({ db: deps.handle.db, now }));
 
 	app.route(
 		"/",

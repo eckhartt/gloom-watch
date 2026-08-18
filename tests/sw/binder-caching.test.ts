@@ -42,6 +42,7 @@ describe("the corpus image route", () => {
 		expect(isCorpusImagePath("/api/corpus/sync")).toBe(false);
 		expect(isCorpusImagePath("/api/corpus/cards/en%3Abase2-44")).toBe(false);
 		expect(isCorpusImagePath("/api/binder")).toBe(false);
+		expect(isCorpusImagePath("/api/listings")).toBe(false);
 	});
 
 	it("keeps its cached bytes in a cache of its own", () => {
@@ -58,5 +59,6 @@ describe("the binder document route", () => {
 		expect(isBinderDocumentPath("/api/binder/44")).toBe(false);
 		expect(isBinderDocumentPath("/binder")).toBe(false);
 		expect(isBinderDocumentPath("/api/health")).toBe(false);
+		expect(isBinderDocumentPath("/api/listings")).toBe(false);
 	});
 });

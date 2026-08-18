@@ -1,6 +1,7 @@
 import { createRootRoute, createRoute, createRouter, Outlet } from "@tanstack/react-router";
 import { parseBinderSearch } from "./binder/filters.ts";
 import { BinderScreen } from "./routes/binder.tsx";
+import { FeedScreen, ListingDetailScreen } from "./routes/feed.tsx";
 import { HomeScreen } from "./routes/home.tsx";
 
 /**
@@ -45,7 +46,19 @@ const statusRoute = createRoute({
 	component: HomeScreen,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, statusRoute]);
+const feedRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/feed",
+	component: FeedScreen,
+});
+
+const listingRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/feed/$itemId",
+	component: ListingDetailScreen,
+});
+
+const routeTree = rootRoute.addChildren([indexRoute, statusRoute, feedRoute, listingRoute]);
 
 export const router = createRouter({ routeTree });
 

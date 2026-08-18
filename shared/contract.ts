@@ -7,6 +7,8 @@
  * first of them to reach the wire. It must never be turned into an epoch on either side.
  */
 
+import type { ScanHealth } from "./listings.ts";
+
 /** Path of the health document. */
 export const HEALTH_PATH = "/api/health";
 
@@ -145,6 +147,8 @@ export interface HealthDocument {
 	readonly corpusLastSyncedAt: number | null;
 	/** Variants held. The masterset's size, and the denominator's raw material. */
 	readonly corpusVariantCount: number;
+	/** Per-marketplace cursors and the day's call spend. Present even before the first scan. */
+	readonly scan: ScanHealth;
 	/** UTC epoch ms at the moment the request was served. */
 	readonly serverTimeMs: number;
 }

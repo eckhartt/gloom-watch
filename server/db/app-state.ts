@@ -20,6 +20,12 @@ export const APP_STATE_KEYS = {
 	 * image anywhere has moved.
 	 */
 	corpusImageManifestEtag: "corpus_image_manifest_etag",
+	/**
+	 * How many forward-scan cycles have completed (successfully or not). DE and AU run when
+	 * this is divisible by four. Incremented at the start of each cycle so a crash mid-scan
+	 * still counts — otherwise a failing cycle would retry DE/AU forever.
+	 */
+	scanCycleCount: "scan_cycle_count",
 } as const;
 
 export type AppStateKey = (typeof APP_STATE_KEYS)[keyof typeof APP_STATE_KEYS];

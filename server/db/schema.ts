@@ -17,6 +17,7 @@ import {
 	COPY_SOURCE_TYPES,
 	COPY_STATUSES,
 } from "../../shared/copies.ts";
+import { MARKETPLACES } from "../../shared/listings.ts";
 import { PUSH_TRANSPORTS } from "../../shared/push.ts";
 
 /**
@@ -26,7 +27,8 @@ import { PUSH_TRANSPORTS } from "../../shared/push.ts";
  * the owner edits, and folding a job heartbeat into that table would confuse configuration with
  * health the moment either grows.
  *
- * Photographs, listings and aliases are later tickets and are not modelled here.
+ * Photographs and aliases are later tickets and are not modelled here. Listings live in
+ * their own tables further down — a field whitelist, never a raw payload.
  */
 export const appState = sqliteTable("app_state", {
 	key: text("key").primaryKey(),
@@ -545,3 +547,116 @@ export const variantPriorities = sqliteTable(
 );
 
 export type VariantPriorityRow = typeof variantPriorities.$inferSelect;
+
+/**
+ * One eBay item the scanner has observed, stored as a **field whitelist**.
+ *
+ * The whitelist is applied at the eBay client boundary, before anything reaches this table.
+ * A raw Browse `ItemSummary` contains `seller.username`; persisting that would forfeit the
+ * account-deletion opt-out and force a public HTTPS endpoint, which would kill tailnet-only
+ * hosting. The seller object never reaches disk. The only permitted derivative is
+ * `seller_hash` — HMAC-SHA-256 keyed by `RELIST_HASH_SALT` — used solely as a relist dedupe
+ * key and never displayed.
+ *
+ * **The whole row is eBay content**, so the whole row expires at 90 days. There is no separate
+ * payload column to purge. The seen-set (an opaque item id and a timestamp) survives in its
+ * own table and holds nothing of eBay's.
+ *
+ * `condition_id` is stored as eBay sent it and is **never mapped to a card condition**. For
+ * trading cards it means graded/ungraded, and `4000` reads as "Very Good" while meaning
+ * *ungraded*. Nothing in this application translates it.
+ */
+export const listings = sqliteTable(
+	"listings",
+	{
+		/** eBay's `itemId`, typically `v1|{legacyId}|0`. Unique across marketplaces. */
+		itemId: text("item_id").primaryKey(),
+		marketplace: text("marketplace", { enum: MARKETPLACES }).notNull(),
+		title: text("title").notNull(),
+		/** Integer minor units of `currency`. Hidden on the wire after six hours, kept here. */
+		priceMinor: integer("price_minor"),
+		currency: text("currency"),
+		/** `FIXED_PRICE`, `AUCTION`, `BEST_OFFER` — eBay's buying option, not a card condition. */
+		buyingOption: text("buying_option"),
+		/** Raw eBay `conditionId`. Never mapped. */
+		conditionId: integer("condition_id"),
+		itemWebUrl: text("item_web_url"),
+		itemLocationCountry: text("item_location_country"),
+		/** UTC epoch ms of `itemOriginDate`. Survives a relist; a new listing mints a new one. */
+		itemOriginDate: integer("item_origin_date"),
+		/** UTC epoch ms of this observation. Retention and the six-hour rule both key off it. */
+		observedAt: integer("observed_at").notNull(),
+		/**
+		 * HMAC-SHA-256(RELIST_HASH_SALT, seller.username) as lowercase hex.
+		 * Never selected onto the wire. Expires with the row.
+		 */
+		sellerHash: text("seller_hash"),
+		/** JSON object of result-set aspects that arrived with the summary, else `{}`. */
+		aspects: text("aspects").notNull().default("{}"),
+	},
+	(table) => [
+		index("listings_observed_at_idx").on(table.observedAt),
+		index("listings_marketplace_idx").on(table.marketplace),
+		check(
+			"listings_price_needs_currency",
+			sql`${table.priceMinor} is null or ${table.currency} is not null`,
+		),
+	],
+);
+
+export type ListingRow = typeof listings.$inferSelect;
+
+/**
+ * Every item id the scanner has ever seen, and **nothing else**.
+ *
+ * This is not eBay content — an opaque identifier and two timestamps — so it never expires.
+ * It is what stops a listing that fell out of the 90-day window from re-notifying on day 91
+ * when the same `itemId` is observed again. The matcher and the push rule read it; the feed
+ * does not.
+ */
+export const seenItems = sqliteTable("seen_items", {
+	itemId: text("item_id").primaryKey(),
+	firstSeenAt: integer("first_seen_at").notNull(),
+	lastSeenAt: integer("last_seen_at").notNull(),
+});
+
+export type SeenItemRow = typeof seenItems.$inferSelect;
+
+/**
+ * The forward cursor, **one row per marketplace**.
+ *
+ * DE and AU run every fourth cycle. A single global cursor would advance on a US-only cycle
+ * and the next DE run would miss everything listed in between. `last_scanned_at` is the
+ * cursor and advances only on a successful, fully-paged scan for *that* marketplace. A
+ * failure increments `consecutive_failures` and leaves it alone.
+ *
+ * `category_id` is resolved via the Taxonomy API except for US, which is the confirmed leaf
+ * `183454`. A marketplace with no category yet is skipped, not guessed at.
+ */
+export const scanCursors = sqliteTable("scan_cursors", {
+	marketplace: text("marketplace", { enum: MARKETPLACES }).primaryKey(),
+	/** UTC epoch ms. The next window starts this minus the overlap. Null until the first success. */
+	lastScannedAt: integer("last_scanned_at"),
+	lastSuccessAt: integer("last_success_at"),
+	consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+	/** Leaf category ID. US is seeded; the others are written when Taxonomy answers. */
+	categoryId: text("category_id"),
+	updatedAt: integer("updated_at").notNull(),
+});
+
+export type ScanCursorRow = typeof scanCursors.$inferSelect;
+
+/**
+ * Calls spent against the daily Browse/Taxonomy budget, one row per UTC calendar day.
+ *
+ * Checked before every page. Exhaustion stops the cycle; the next UTC day starts at zero.
+ * A 429 still counts — eBay spent the call even though we got nothing.
+ */
+export const scanBudget = sqliteTable("scan_budget", {
+	/** ISO `YYYY-MM-DD` in UTC. A calendar day, not an instant. */
+	day: text("day").primaryKey(),
+	callsUsed: integer("calls_used").notNull(),
+	updatedAt: integer("updated_at").notNull(),
+});
+
+export type ScanBudgetRow = typeof scanBudget.$inferSelect;

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import type { ScanHealth } from "../../shared/listings.ts";
 import { fetchCompletion, fetchHealth } from "../api.ts";
 import { COMPLETION_QUERY_KEY } from "../collection.ts";
 import { NotificationSection } from "../notifications.tsx";
@@ -57,6 +58,61 @@ function Row({ label, value }: { label: string; value: string }) {
  * flagged `missing_upstream` that the owner does not hold leaves the total, so the figure can move
  * without the owner touching anything, and that line is what makes the reason readable.
  */
+function ScanPanel({
+	scan,
+	timezone,
+	formatInstant,
+}: {
+	scan: ScanHealth | undefined;
+	timezone: string;
+	formatInstant: (value: number | null) => string;
+}) {
+	if (scan === undefined) return null;
+
+	const oldestSuccess = scan.marketplaces.reduce<number | null>((oldest, entry) => {
+		if (entry.lastSuccessAt === null) return oldest;
+		if (oldest === null || entry.lastSuccessAt < oldest) return entry.lastSuccessAt;
+		return oldest;
+	}, null);
+
+	return (
+		<section>
+			<h2>The scanner</h2>
+			<p className="subtitle">
+				<Link to="/feed">open the feed</Link>
+			</p>
+			<dl>
+				<Row label="Cycle" value={String(scan.cycle)} />
+				<Row label="Calls today" value={`${scan.dailyCallsUsed} / ${scan.dailyCallBudget}`} />
+				<Row
+					label="Oldest success"
+					value={
+						oldestSuccess === null
+							? "never — waiting on the first cycle"
+							: formatInstant(oldestSuccess)
+					}
+				/>
+				{scan.marketplaces.map((entry) => (
+					<Row
+						key={entry.marketplace}
+						label={entry.marketplace}
+						value={
+							entry.lastSuccessAt === null
+								? entry.consecutiveFailures > 0
+									? `never · ${entry.consecutiveFailures} fail`
+									: "not yet"
+								: `${formatInstant(entry.lastSuccessAt)}${
+										entry.consecutiveFailures > 0 ? ` · ${entry.consecutiveFailures} fail` : ""
+									}`
+						}
+					/>
+				))}
+			</dl>
+			<p className="muted">Times in {timezone}.</p>
+		</section>
+	);
+}
+
 function CompletionPanel() {
 	const completion = useQuery({
 		queryKey: COMPLETION_QUERY_KEY,
@@ -150,6 +206,12 @@ export function HomeScreen() {
 					</dl>
 				) : null}
 			</section>
+
+			<ScanPanel
+				scan={health.data?.scan}
+				timezone={health.data?.timezone ?? "UTC"}
+				formatInstant={(value) => formatInstant(value, health.data?.timezone ?? "UTC")}
+			/>
 
 			<CompletionPanel />
 

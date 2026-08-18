@@ -82,7 +82,8 @@ sudo chmod 0640 /etc/gloom-watch/gloom-watch.env
 sudo -u gloom head -c0 /etc/gloom-watch/gloom-watch.env && echo "gloom can read it"
 ```
 
-The eBay and backup keys belong to later tickets and may stay empty. The VAPID keys are next.
+The backup keys belong to a later ticket and may stay empty. The VAPID keys are next. eBay
+credentials are required for the forward scanner — see step 7a.
 
 ## 4a. Generate the VAPID keypair — once, ever
 
@@ -165,6 +166,10 @@ The job path registered is absolute, and the server resolves `data/`, `drizzle/`
 process and the systemd service open the same database whatever cron sets its cwd to. A cron
 environment is minimal; do not rely on it carrying anything from the environment file.
 
+This now registers two titles: `gloom-watch-heartbeat` and `gloom-watch-scan`. Both run every
+ten minutes, each in its own process with its own SQLite connection. The scanner no-ops
+quietly if `EBAY_CLIENT_ID` is unset, so registration is safe before the keyset exists.
+
 Wait ten minutes, then check that `lastHeartbeatAt` has stopped being `null`:
 
 ```sh
@@ -174,6 +179,28 @@ curl -s http://127.0.0.1:3000/api/health
 **Verifies:** *A `Bun.cron` OS-level job is registered and survives a reboot, proving the
 three-argument form works on this box.* Reboot and confirm the crontab entry is still there and
 the heartbeat resumes.
+
+## 7a. eBay production keyset
+
+The scanner cannot finish a real cycle without a production application keyset. Sandbox
+listings are not the live market.
+
+A keyset is not live until the owner **opts out** of marketplace account-deletion
+notifications. Subscribing requires a publicly reachable HTTPS endpoint and would kill
+tailnet-only hosting. Do not subscribe.
+
+```sh
+sudo nano /etc/gloom-watch/gloom-watch.env
+# set EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, RELIST_HASH_SALT
+# RELIST_HASH_SALT is any long random string; generate once and keep it.
+# Losing it on restore makes every stored seller hash stop matching.
+```
+
+The cron job reads this file itself — it does not inherit systemd's `EnvironmentFile`. Confirm
+the `gloom` account can open it (`0640`, group `gloom`) before waiting on a cycle.
+
+After the first successful cycle, `/feed` shows listings with a "seen at" stamp and an outbound
+link. Prices older than six hours are omitted and the age is disclosed.
 
 A settings screen that later edits `scan_interval_minutes` or `digest_times` must re-run this
 registration, or the stored value and the running job disagree silently.
