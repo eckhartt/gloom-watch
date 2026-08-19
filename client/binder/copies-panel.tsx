@@ -21,6 +21,7 @@ import type {
 	CopyDisposalRequest,
 	CopyDocument,
 	CopyPatchRequest,
+	PriorityDocument,
 } from "../../shared/copies.ts";
 import {
 	CERT_NO_MAX_LENGTH,
@@ -31,14 +32,28 @@ import {
 	MAX_PRIORITY,
 	PRIORITY_LEVELS,
 } from "../../shared/copies.ts";
+import { optimisticCopyDocument } from "../../shared/outbox.ts";
+import { fetchVariantCopies } from "../api.ts";
 import {
-	createCopy,
-	disposeCopy,
-	fetchVariantCopies,
-	setVariantPriority,
-	updateCopy,
-} from "../api.ts";
-import { invalidateAfter, newCopyId, variantCopiesQueryKey } from "../collection.ts";
+	applyOptimisticCopyCreate,
+	applyOptimisticCopyDispose,
+	applyOptimisticCopyUpdate,
+	applyOptimisticPriority,
+	BINDER_QUERY_KEY,
+	COMPLETION_QUERY_KEY,
+	invalidateAfter,
+	newCopyId,
+	variantCopiesQueryKey,
+} from "../collection.ts";
+import { useOutboxSnapshot } from "../outbox-status.tsx";
+import type { WriteResult } from "../writes.ts";
+import {
+	attemptPhotoUpload,
+	writeCopyCreate,
+	writeCopyDispose,
+	writeCopyUpdate,
+	writePriority,
+} from "../writes.ts";
 import type { CopyFormValues } from "./copy-form.ts";
 import { copyFieldsFrom, copyFormFrom, EMPTY_COPY_FORM } from "./copy-form.ts";
 import { copyPresentation } from "./presentation.ts";
@@ -311,10 +326,16 @@ function CopyRow({
 	copy,
 	onEdit,
 	onDispose,
+	onPhoto,
+	photoHeld,
+	photoBusy,
 }: {
 	copy: CopyDocument;
 	onEdit: () => void;
 	onDispose: () => void;
+	onPhoto: () => void;
+	photoHeld: boolean;
+	photoBusy: boolean;
 }) {
 	const presentation = copyPresentation(copy);
 	return (
@@ -326,15 +347,25 @@ function CopyRow({
 					<span className="muted">{presentation.disposal}</span>
 				)}
 				{copy.note === null ? null : <span className="muted copy-note">{copy.note}</span>}
+				{photoHeld ? (
+					<span className="outbox-pending">
+						Photo waiting for a connection. It is not queued — photos are too large for the outbox.
+					</span>
+				) : null}
 			</div>
 			<div className="copy-buttons">
 				<button type="button" className="quiet" onClick={onEdit}>
 					Edit
 				</button>
 				{presentation.disposal === null ? (
-					<button type="button" className="quiet" onClick={onDispose}>
-						Dispose
-					</button>
+					<>
+						<button type="button" className="quiet" onClick={onDispose}>
+							Dispose
+						</button>
+						<button type="button" className="quiet" onClick={onPhoto} disabled={photoBusy}>
+							{photoHeld ? "Photo waiting" : "Add a photo"}
+						</button>
+					</>
 				) : null}
 			</div>
 		</li>
@@ -348,6 +379,7 @@ export function CopiesPanel({ entry }: { entry: BinderEntry }) {
 	const copies = useQuery({
 		queryKey,
 		queryFn: ({ signal }) => fetchVariantCopies(entry.cardKey, entry.variantId, signal),
+		networkMode: "offlineFirst",
 	});
 
 	const [form, setForm] = useState<CopyFormValues | null>(null);
@@ -355,6 +387,8 @@ export function CopiesPanel({ entry }: { entry: BinderEntry }) {
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [disposingId, setDisposingId] = useState<string | null>(null);
 	const [formError, setFormError] = useState<string | null>(null);
+	const [photoNote, setPhotoNote] = useState<string | null>(null);
+	const outbox = useOutboxSnapshot();
 
 	/** Everything a write here falsifies: this list, the binder's ownership, and completion. */
 	const afterWrite = () => {
@@ -362,37 +396,124 @@ export function CopiesPanel({ entry }: { entry: BinderEntry }) {
 		invalidateAfter(queryClient, "copy-write");
 	};
 
-	const create = useMutation({
-		mutationFn: createCopy,
-		onSuccess: () => {
-			afterWrite();
+	type CacheSnapshot = {
+		readonly copies: unknown;
+		readonly binder: unknown;
+		readonly completion: unknown;
+	};
+
+	const snapshotCache = (): CacheSnapshot => ({
+		copies: queryClient.getQueryData(queryKey),
+		binder: queryClient.getQueryData(BINDER_QUERY_KEY),
+		completion: queryClient.getQueryData(COMPLETION_QUERY_KEY),
+	});
+
+	const restoreCache = (snapshot: CacheSnapshot | undefined) => {
+		if (snapshot === undefined) return;
+		queryClient.setQueryData(queryKey, snapshot.copies);
+		queryClient.setQueryData(BINDER_QUERY_KEY, snapshot.binder);
+		queryClient.setQueryData(COMPLETION_QUERY_KEY, snapshot.completion);
+	};
+
+	const create = useMutation<
+		WriteResult<CopyDocument>,
+		Error,
+		Parameters<typeof writeCopyCreate>[0],
+		CacheSnapshot
+	>({
+		mutationFn: (request) => writeCopyCreate(request),
+		onMutate: async (request) => {
+			await queryClient.cancelQueries({ queryKey });
+			const snapshot = snapshotCache();
+			applyOptimisticCopyCreate(queryClient, optimisticCopyDocument(request));
+			return snapshot;
+		},
+		onError: (_error, _request, snapshot) => restoreCache(snapshot),
+		onSuccess: (result) => {
+			if (!result.queued) afterWrite();
 			setForm(null);
 		},
 	});
 
-	const edit = useMutation({
-		mutationFn: (input: { id: string; patch: CopyPatchRequest }) =>
-			updateCopy(input.id, input.patch),
-		onSuccess: () => {
-			afterWrite();
+	const edit = useMutation<
+		WriteResult<CopyDocument>,
+		Error,
+		{ id: string; patch: CopyPatchRequest; previous: CopyDocument },
+		CacheSnapshot
+	>({
+		mutationFn: (input) => writeCopyUpdate(input.id, input.patch, input.previous),
+		onMutate: async (input) => {
+			await queryClient.cancelQueries({ queryKey });
+			const snapshot = snapshotCache();
+			applyOptimisticCopyUpdate(queryClient, {
+				...input.previous,
+				...input.patch,
+				updatedAt: Date.now(),
+			});
+			return snapshot;
+		},
+		onError: (_error, _input, snapshot) => restoreCache(snapshot),
+		onSuccess: (result) => {
+			if (!result.queued) afterWrite();
 			setForm(null);
 			setEditingId(null);
 		},
 	});
 
-	const dispose = useMutation({
-		mutationFn: (input: { id: string; request: CopyDisposalRequest }) =>
-			disposeCopy(input.id, input.request),
-		onSuccess: () => {
-			afterWrite();
+	const dispose = useMutation<
+		WriteResult<CopyDocument>,
+		Error,
+		{ id: string; request: CopyDisposalRequest; previous: CopyDocument },
+		CacheSnapshot
+	>({
+		mutationFn: (input) => writeCopyDispose(input.id, input.request, input.previous),
+		onMutate: async (input) => {
+			await queryClient.cancelQueries({ queryKey });
+			const snapshot = snapshotCache();
+			applyOptimisticCopyDispose(queryClient, {
+				...input.previous,
+				status: "disposed",
+				disposedAt: input.request.disposedAt,
+				disposalKind: input.request.disposalKind ?? input.previous.disposalKind,
+			});
+			return snapshot;
+		},
+		onError: (_error, _input, snapshot) => restoreCache(snapshot),
+		onSuccess: (result) => {
+			if (!result.queued) afterWrite();
 			setDisposingId(null);
 		},
 	});
 
-	const priority = useMutation({
-		mutationFn: setVariantPriority,
-		// The dial rides on the binder document, so the grid is what has to be re-read.
-		onSuccess: () => invalidateAfter(queryClient, "copy-write"),
+	const priority = useMutation<
+		WriteResult<PriorityDocument>,
+		Error,
+		Parameters<typeof writePriority>[0],
+		CacheSnapshot
+	>({
+		mutationFn: (request) => writePriority(request),
+		onMutate: async (request) => {
+			const snapshot = snapshotCache();
+			applyOptimisticPriority(queryClient, request.cardKey, request.variantId, request.priority);
+			return snapshot;
+		},
+		onError: (_error, _request, snapshot) => restoreCache(snapshot),
+		onSuccess: (result) => {
+			if (!result.queued) invalidateAfter(queryClient, "copy-write");
+		},
+	});
+
+	const photo = useMutation({
+		mutationFn: (copyId: string) => attemptPhotoUpload(copyId),
+		onSuccess: (result) => {
+			if (result.status === "held") {
+				setPhotoNote(
+					"Photo waiting for a connection. It is not queued — photos are too large for the outbox.",
+				);
+				return;
+			}
+			setPhotoNote("Photograph uploads aren't in this build yet.");
+		},
 	});
 
 	const busy = create.isPending || edit.isPending || dispose.isPending;
@@ -409,8 +530,8 @@ export function CopiesPanel({ entry }: { entry: BinderEntry }) {
 		}
 		setFormError(null);
 		if (editingId === null) {
-			// **The client mints the identifier.** It is what makes an outbox replay land in this same
-			// row rather than in a second card the owner does not have.
+			// **The client mints the identifier.** It is what makes an outbox replay land in this
+			// same row rather than in a second card the owner does not have.
 			create.mutate({
 				id: newCopyId(),
 				cardKey: entry.cardKey,
@@ -418,7 +539,12 @@ export function CopiesPanel({ entry }: { entry: BinderEntry }) {
 				...parsed.fields,
 			});
 		} else {
-			edit.mutate({ id: editingId, patch: parsed.fields });
+			const previous = (copies.data ?? []).find((copy) => copy.id === editingId);
+			if (previous === undefined) {
+				setFormError("that copy is not on this sheet");
+				return;
+			}
+			edit.mutate({ id: editingId, patch: parsed.fields, previous });
 		}
 	}
 
@@ -428,15 +554,15 @@ export function CopiesPanel({ entry }: { entry: BinderEntry }) {
 		<section className="sheet-copies">
 			<h3>Copies</h3>
 
-			{copies.isPending ? <p className="muted">Reading…</p> : null}
-			{copies.isError ? (
+			{copies.isPending && held.length === 0 ? <p className="muted">Reading…</p> : null}
+			{copies.isError && held.length === 0 ? (
 				// Ownership itself is on the cached binder document, so the count above is still right
 				// with the tailnet down; only the trail below needs the server.
 				<p className="error">The copies did not load: {(copies.error as Error).message}</p>
 			) : null}
-			{copies.isSuccess && held.length === 0 ? (
+			{held.length === 0 && !copies.isPending && !copies.isError ? (
 				<p className="muted">None recorded.</p>
-			) : (
+			) : held.length === 0 ? null : (
 				<ul className="copy-list">
 					{held.map((copy) => (
 						<CopyRow
@@ -452,6 +578,9 @@ export function CopiesPanel({ entry }: { entry: BinderEntry }) {
 								setDisposingId(copy.id);
 								setForm(null);
 							}}
+							onPhoto={() => photo.mutate(copy.id)}
+							photoHeld={outbox.photoCopyIds.includes(copy.id)}
+							photoBusy={photo.isPending}
 						/>
 					))}
 				</ul>
@@ -461,9 +590,15 @@ export function CopiesPanel({ entry }: { entry: BinderEntry }) {
 				<DisposalForm
 					busy={busy}
 					onCancel={() => setDisposingId(null)}
-					onConfirm={(disposedAt, kind) =>
-						dispose.mutate({ id: disposingId, request: { disposedAt, disposalKind: kind } })
-					}
+					onConfirm={(disposedAt, kind) => {
+						const previous = held.find((copy) => copy.id === disposingId);
+						if (previous === undefined) return;
+						dispose.mutate({
+							id: disposingId,
+							request: { disposedAt, disposalKind: kind },
+							previous,
+						});
+					}}
 				/>
 			) : null}
 
@@ -497,6 +632,7 @@ export function CopiesPanel({ entry }: { entry: BinderEntry }) {
 			)}
 
 			{formError === null ? null : <p className="error">{formError}</p>}
+			{photoNote === null ? null : <p className="outbox-pending">{photoNote}</p>}
 			{/* The server's own sentence — *a grade needs a grader* — rather than a status code, which
 			    is the difference between a form the owner can correct and one they can only retry. */}
 			{writeError === null ? null : <p className="error">{writeError.message}</p>}

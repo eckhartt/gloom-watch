@@ -174,10 +174,9 @@ export interface CopyFields {
  * Recording a copy.
  *
  * **The client mints `id`, and it is the primary key.** That is what makes an outbox replay
- * idempotent in the ticket after this one: a create whose response was lost on a dropping tailnet
- * replays into the same row rather than into a second card the owner does not have. A
- * server-generated identifier could not do that, because the client would have nothing to replay
- * *with*.
+ * idempotent: a create whose response was lost on a dropping tailnet replays into the same row
+ * rather than into a second card the owner does not have. A server-generated identifier could
+ * not do that, because the client would have nothing to replay *with*.
  */
 export interface CopyCreateRequest extends CopyFields {
 	readonly id: string;

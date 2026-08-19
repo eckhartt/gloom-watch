@@ -33,6 +33,20 @@ import { UNLOCK_PATH } from "../shared/gate.ts";
 import type { ListingDocument, ListingsDocument } from "../shared/listings.ts";
 import { LISTINGS_PATH, listingPath } from "../shared/listings.ts";
 import type {
+	CorpusExclusionDocument,
+	CorpusExclusionListDocument,
+	CorpusExclusionUpsertRequest,
+	ManualVariantCreateRequest,
+	ManualVariantDocument,
+	ManualVariantPatchRequest,
+} from "../shared/manual.ts";
+import {
+	CORPUS_EXCLUSIONS_PATH,
+	corpusExclusionPath,
+	MANUAL_VARIANTS_PATH,
+	manualVariantPath,
+} from "../shared/manual.ts";
+import type {
 	AliasCreateRequest,
 	AliasDocument,
 	AliasListDocument,
@@ -50,20 +64,6 @@ import {
 	queueRejectPath,
 	queueVariantPath,
 } from "../shared/queue.ts";
-import type {
-	CorpusExclusionDocument,
-	CorpusExclusionListDocument,
-	CorpusExclusionUpsertRequest,
-	ManualVariantCreateRequest,
-	ManualVariantDocument,
-	ManualVariantPatchRequest,
-} from "../shared/manual.ts";
-import {
-	CORPUS_EXCLUSIONS_PATH,
-	corpusExclusionPath,
-	MANUAL_VARIANTS_PATH,
-	manualVariantPath,
-} from "../shared/manual.ts";
 
 export class ApiError extends Error {
 	readonly status: number;

@@ -12,8 +12,8 @@
  *
  * The same rules are `CHECK` constraints on the table. This layer exists so the owner gets a
  * sentence instead of `SQLITE_CONSTRAINT`; the table's copy exists because an import route and an
- * outbox replay are both coming, and a rule enforced only in a request handler is a rule that
- * holds only for requests.
+ * outbox replay both write through here, and a rule enforced only in a request handler is a rule
+ * that holds only for requests.
  */
 
 import type {

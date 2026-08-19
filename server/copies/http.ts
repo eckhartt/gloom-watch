@@ -7,9 +7,9 @@
  * with it. The only removal anywhere in this file clears a *priority*, which is a preference and
  * not a card.
  *
- * Every route here is one the outbox will replay in a later ticket, so each is either idempotent
- * by construction (the create, keyed on the client's UUID) or idempotent by nature (a patch, a
- * disposal that has already happened, a priority that is set to the value it already has).
+ * Every route here is one the outbox replays, so each is either idempotent by construction
+ * (the create, keyed on the client's UUID) or idempotent by nature (a patch, a disposal that
+ * has already happened, a priority that is set to the value it already has).
  */
 
 import { Hono } from "hono";

@@ -33,10 +33,12 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.5",
+    "@tanstack/react-query-persist-client": "^5.101.4",
     "@tanstack/react-router": "^1.132.66",
     "@tanstack/react-virtual": "^3.14.9",
     "drizzle-orm": "^0.44.7",
     "hono": "^4.10.2",
+    "idb-keyval": "^6.3.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "web-push": "^3.6.7"
