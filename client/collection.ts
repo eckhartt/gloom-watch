@@ -62,6 +62,11 @@ export function variantCopiesQueryKey(cardKey: string, variantId: string): reado
 	return ["copies", cardKey, variantId];
 }
 
+/** One copy's photographs. Keyed on the copy, because that is what they attach to. */
+export function copyPhotographsQueryKey(copyId: string): readonly string[] {
+	return ["photographs", copyId];
+}
+
 /**
  * The two events the spec names, and everything each one falsifies.
  *
@@ -100,6 +105,15 @@ export function invalidateAfter(queryClient: QueryClient, event: CollectionEvent
  * fallback composes a v4 by hand rather than leaving the button broken.
  */
 export function newCopyId(): string {
+	return newClientUuid();
+}
+
+/** Same minting as a copy id — photographs are client-authored rows too. */
+export function newPhotographId(): string {
+	return newClientUuid();
+}
+
+function newClientUuid(): string {
 	if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
 
 	const bytes = crypto.getRandomValues(new Uint8Array(16));

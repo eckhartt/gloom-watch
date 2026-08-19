@@ -18,6 +18,8 @@ import type {
 	CopyDocument,
 	CopyListDocument,
 	CopyPatchRequest,
+	PhotographDocument,
+	PhotographListDocument,
 	PriorityDocument,
 	PriorityRequest,
 } from "../shared/copies.ts";
@@ -26,7 +28,9 @@ import {
 	COPIES_PATH,
 	copyDisposalPath,
 	copyPath,
+	copyPhotographsPath,
 	PRIORITIES_PATH,
+	photographPath,
 	variantCopiesPath,
 } from "../shared/copies.ts";
 import { UNLOCK_PATH } from "../shared/gate.ts";
@@ -171,6 +175,56 @@ export function fetchCompletion(signal?: AbortSignal): Promise<CompletionDocumen
 
 export function setVariantPriority(request: PriorityRequest): Promise<PriorityDocument> {
 	return sendJson<PriorityDocument>(PRIORITIES_PATH, "PUT", request);
+}
+
+export async function fetchCopyPhotographs(
+	copyId: string,
+	signal?: AbortSignal,
+): Promise<readonly PhotographDocument[]> {
+	const body = await getJson<PhotographListDocument>(copyPhotographsPath(copyId), signal);
+	return body.photographs;
+}
+
+/**
+ * Attach a photograph. The `id` is minted by the caller; the file is the original, and the
+ * server resizes and recompresses it. Multipart rather than JSON: the original is binary and
+ * must not be base64'd into the outbox later.
+ */
+export async function attachPhotograph(
+	copyId: string,
+	id: string,
+	file: Blob,
+): Promise<PhotographDocument> {
+	const body = new FormData();
+	body.set("id", id);
+	body.set("file", file);
+	const response = await fetch(copyPhotographsPath(copyId), { method: "POST", body });
+	const payload: unknown = await response.json().catch(() => null);
+	if (response.status === 401 && typeof window !== "undefined") {
+		window.location.assign(UNLOCK_PATH);
+	}
+	if (!response.ok) {
+		const message =
+			typeof payload === "object" && payload !== null && "error" in payload
+				? String((payload as { error: unknown }).error)
+				: `POST ${copyPhotographsPath(copyId)} responded ${response.status}`;
+		throw new ApiError(response.status, message);
+	}
+	return payload as PhotographDocument;
+}
+
+export async function deletePhotograph(id: string): Promise<void> {
+	const response = await fetch(photographPath(id), { method: "DELETE" });
+	if (response.status === 401 && typeof window !== "undefined") {
+		window.location.assign(UNLOCK_PATH);
+	}
+	if (response.status === 204) return;
+	const payload: unknown = await response.json().catch(() => null);
+	const message =
+		typeof payload === "object" && payload !== null && "error" in payload
+			? String((payload as { error: unknown }).error)
+			: `DELETE ${photographPath(id)} responded ${response.status}`;
+	throw new ApiError(response.status, message);
 }
 
 export function fetchListings(

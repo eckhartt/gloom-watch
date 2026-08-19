@@ -4,7 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BinderEntry } from "../../shared/contract.ts";
 import { corpusCardImagePath } from "../../shared/contract.ts";
-import { CopiesPanel } from "../binder/copies-panel.tsx";
+import { CopiesPanel, SheetPhotographs } from "../binder/copies-panel.tsx";
 import { FilterSheet } from "../binder/filter-sheet.tsx";
 import type { BinderFilters, FilterAxis } from "../binder/filters.ts";
 import {
@@ -139,10 +139,11 @@ function BinderCell({
 /**
  * The variant sheet.
  *
- * It shows the corpus image, the variant's axes and the copies the owner holds of it — adding,
- * editing and disposing of one all happen here. Photographs and current listings are later tickets
- * and there is no placeholder for either: the spec records the sheet's layout as still undecided,
- * and a box reserved for something nobody has designed is a design decision made by accident.
+ * It shows the corpus image, the owner's photographs, the variant's axes and the copies the
+ * owner holds of it — adding, editing and disposing of one all happen here. Current listings
+ * are a later ticket and there is no placeholder for them: the spec records the sheet's layout
+ * as still undecided, and a box reserved for something nobody has designed is a design decision
+ * made by accident.
  *
  * Rendered as a sibling of the scroll container rather than inside it, so the grid keeps its
  * scroll offset and the sheet is not itself scrolled away. Escape and the backdrop both dismiss,
@@ -176,13 +177,20 @@ function BinderSheet({ entry, onClose }: { entry: BinderEntry; onClose: () => vo
 				</header>
 
 				<div className="sheet-body">
-					{entry.hasImage ? (
-						<img className="sheet-art" src={corpusCardImagePath(entry.cardKey)} alt={entry.name} />
-					) : (
-						<p className="sheet-art-missing muted">
-							No corpus image — upstream carries none for this card.
-						</p>
-					)}
+					<div className="sheet-images">
+						{entry.hasImage ? (
+							<img
+								className="sheet-art"
+								src={corpusCardImagePath(entry.cardKey)}
+								alt={entry.name}
+							/>
+						) : (
+							<p className="sheet-art-missing muted">
+								No corpus image — upstream carries none for this card.
+							</p>
+						)}
+						<SheetPhotographs entry={entry} />
+					</div>
 
 					<dl className="sheet-facts">
 						<Fact label="State" value={ownershipLine(entry)} />
