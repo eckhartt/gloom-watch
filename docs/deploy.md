@@ -219,6 +219,32 @@ dead.
 A settings screen that later edits `scan_interval_minutes` or `digest_times` must re-run this
 registration, or the stored value and the running job disagree silently.
 
+## 7b. Backfill existing inventory
+
+The forward cursor keys off `itemStartDate` (eBay's `itemOriginDate`, retained across a
+relist). Everything that existed before the scanner started is permanently outside that
+window. Until a marketplace's backfill is marked complete, **its forward cursor does not
+run** — `gloom-watch-scan` will resume the sweep instead, then wait.
+
+On the box (`htpc`):
+
+```sh
+cd /opt/gloom-watch
+# Short horizon: proof the job works without spending a full day's Browse budget.
+# Default is 3650 days. A 90-day AU sweep can exhaust `daily_call_budget`.
+sudo -u gloom env $(grep -v '^#' /etc/gloom-watch/gloom-watch.env | xargs) \
+  BACKFILL_HORIZON_DAYS=7 \
+  /usr/local/bin/bun run backfill
+```
+
+The job is resumable. A spent daily budget leaves `backfill_cursors.window_end`; re-run the
+same command (or wait for the next `gloom-watch-scan` cycle) rather than restarting. Progress
+is on `/status` (`backfill running · N items · to …`) and in the job's stdout. It notifies
+nothing; it seeds `seen_items` so the first forward cycle after it re-announces nothing.
+
+When AU reads `backfill done` on `/status`, open `/feed`. Listings whose origin predates the
+forward cursor should already be there.
+
 ## 8. Front the app with Tailscale Serve
 
 **Serve, never Funnel.** Funnel publishes the app to the public internet and reopens an

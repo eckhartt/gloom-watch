@@ -125,5 +125,12 @@ describe("the listings feed", () => {
 			"GB",
 			"DE",
 		]);
+		expect(body.scan.marketplaces[0]).toMatchObject({
+			backfillCompleteAt: null,
+			backfillStartedAt: null,
+			backfillHorizonAt: null,
+			backfillWindowEnd: null,
+			backfillItemsUpserted: 0,
+		});
 	});
 });

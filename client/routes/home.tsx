@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import type { ScanHealth } from "../../shared/listings.ts";
+import { MARKETPLACE_EVERY_N, type ScanHealth } from "../../shared/listings.ts";
 import { fetchCompletion, fetchHealth } from "../api.ts";
 import { COMPLETION_QUERY_KEY } from "../collection.ts";
 import { NotificationSection } from "../notifications.tsx";
@@ -34,6 +34,28 @@ function formatInstant(value: number | null, timezone: string): string {
 		// An unrecognised IANA name should show the instant, not blow the page up.
 		return new Date(value).toISOString();
 	}
+}
+
+function marketplaceScanLabel(
+	entry: ScanHealth["marketplaces"][number],
+	formatInstant: (value: number | null) => string,
+): string {
+	const enabled = MARKETPLACE_EVERY_N[entry.marketplace] > 0;
+	const last =
+		entry.lastSuccessAt === null
+			? entry.consecutiveFailures > 0
+				? `never · ${entry.consecutiveFailures} fail`
+				: "not yet"
+			: `${formatInstant(entry.lastSuccessAt)}${
+					entry.consecutiveFailures > 0 ? ` · ${entry.consecutiveFailures} fail` : ""
+				}`;
+
+	if (!enabled) return last;
+	if (entry.backfillCompleteAt !== null) return `${last} · backfill done`;
+	if (entry.backfillStartedAt === null) return "backfill pending — forward waiting";
+	const window =
+		entry.backfillWindowEnd === null ? "" : ` · to ${formatInstant(entry.backfillWindowEnd)}`;
+	return `backfill running · ${entry.backfillItemsUpserted} items${window}`;
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -100,15 +122,7 @@ function ScanPanel({
 					<Row
 						key={entry.marketplace}
 						label={entry.marketplace}
-						value={
-							entry.lastSuccessAt === null
-								? entry.consecutiveFailures > 0
-									? `never · ${entry.consecutiveFailures} fail`
-									: "not yet"
-								: `${formatInstant(entry.lastSuccessAt)}${
-										entry.consecutiveFailures > 0 ? ` · ${entry.consecutiveFailures} fail` : ""
-									}`
-						}
+						value={marketplaceScanLabel(entry, formatInstant)}
 					/>
 				))}
 			</dl>

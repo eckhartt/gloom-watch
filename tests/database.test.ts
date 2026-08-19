@@ -144,6 +144,24 @@ describe("the committed migration", () => {
 		]);
 	});
 
+	it("creates per-marketplace backfill cursors without touching scan_cursors", () => {
+		const columns = temp.handle.sqlite
+			.query<{ name: string }, []>("PRAGMA table_info(backfill_cursors)")
+			.all()
+			.map((c) => c.name);
+		expect(columns).toEqual([
+			"marketplace",
+			"complete_at",
+			"started_at",
+			"horizon_at",
+			"window_end",
+			"items_upserted",
+			"calls_used",
+			"last_progress_at",
+			"updated_at",
+		]);
+	});
+
 	it("creates app_state with the expected columns", () => {
 		const columns = temp.handle.sqlite
 			.query<{ name: string; type: string; notnull: number; pk: number }, []>(

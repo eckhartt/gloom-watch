@@ -51,6 +51,19 @@ export const DEFAULT_SCAN_INTERVAL_MINUTES = 10;
 export const DEFAULT_SCAN_CURSOR_OVERLAP_MINUTES = 5;
 /** Leaves headroom under eBay's 5,000/day application quota. */
 export const DEFAULT_DAILY_CALL_BUDGET = 4000;
+/**
+ * How far back the commissioning sweep reaches. Ten years is the spec's starting
+ * point — most active stock is much younger, and a shorter horizon is the knob
+ * for a commissioning that cannot spend a full day's Browse budget.
+ */
+export const DEFAULT_BACKFILL_HORIZON_DAYS = 3650;
+/**
+ * The first cut of a backwards window, before the paging-cap bisect. A week is
+ * large enough that most marketplaces finish a slice in a handful of calls, and
+ * small enough that a spent budget leaves a persisted cursor rather than a
+ * half-paged 90-day range.
+ */
+export const DEFAULT_BACKFILL_WINDOW_DAYS = 7;
 
 /** The whole listing row expires. The seen-set does not. */
 export const LISTING_RETENTION_DAYS = 90;
@@ -131,6 +144,13 @@ export interface ScanMarketplaceHealth {
 	readonly lastSuccessAt: number | null;
 	readonly consecutiveFailures: number;
 	readonly categoryId: string | null;
+	/** UTC epoch ms. Null until this marketplace's backfill has reached its horizon. */
+	readonly backfillCompleteAt: number | null;
+	readonly backfillStartedAt: number | null;
+	readonly backfillHorizonAt: number | null;
+	/** Next window's end — everything after this has been swept. Null before the first slice. */
+	readonly backfillWindowEnd: number | null;
+	readonly backfillItemsUpserted: number;
 }
 
 /**
@@ -146,7 +166,7 @@ export interface ScanHealth {
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
+export const DAY_MS = 24 * HOUR_MS;
 
 export const DISPLAY_FRESHNESS_MS = DISPLAY_FRESHNESS_HOURS * HOUR_MS;
 export const LISTING_RETENTION_MS = LISTING_RETENTION_DAYS * DAY_MS;

@@ -22,6 +22,7 @@
     "vapid:generate": "bun scripts/generate-vapid-keys.ts",
     "push:test": "bun scripts/send-test-push.ts",
     "corpus:sync": "bun server/jobs/corpus-sync.ts",
+    "backfill": "bun server/jobs/backfill.ts",
     "icons": "bun scripts/generate-icons.ts",
     "test": "bun --bun vitest run",
     "test:watch": "bun --bun vitest",

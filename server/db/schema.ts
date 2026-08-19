@@ -649,6 +649,36 @@ export const scanCursors = sqliteTable("scan_cursors", {
 export type ScanCursorRow = typeof scanCursors.$inferSelect;
 
 /**
+ * The commissioning backfill, **one row per marketplace**.
+ *
+ * This is a separate table on purpose. The forward scanner owns `scan_cursors` and
+ * `writeCursorSuccess` / `writeCursorFailure` rewrite that row; folding the completion
+ * marker into it would make every scanner insert list these columns and turn a later
+ * scanner-schema change into a merge hazard. The gate reads `complete_at` here and
+ * nowhere else.
+ *
+ * `window_end` is the resume cursor: everything after it has been swept. A restart
+ * continues from there rather than from `now`. `complete_at` is the marker that
+ * arms the forward cursor for that marketplace.
+ */
+export const backfillCursors = sqliteTable("backfill_cursors", {
+	marketplace: text("marketplace", { enum: MARKETPLACES }).primaryKey(),
+	/** UTC epoch ms. Null until the sweep has reached `horizon_at`. */
+	completeAt: integer("complete_at"),
+	startedAt: integer("started_at"),
+	/** UTC epoch ms. The oldest `itemStartDate` this sweep will request. */
+	horizonAt: integer("horizon_at"),
+	/** UTC epoch ms. Next window's end; everything after this has been swept. */
+	windowEnd: integer("window_end"),
+	itemsUpserted: integer("items_upserted").notNull().default(0),
+	callsUsed: integer("calls_used").notNull().default(0),
+	lastProgressAt: integer("last_progress_at"),
+	updatedAt: integer("updated_at").notNull(),
+});
+
+export type BackfillCursorRow = typeof backfillCursors.$inferSelect;
+
+/**
  * Calls spent against the daily Browse/Taxonomy budget, one row per UTC calendar day.
  *
  * Checked before every page. Exhaustion stops the cycle; the next UTC day starts at zero.

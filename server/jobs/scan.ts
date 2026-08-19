@@ -1,6 +1,7 @@
 import { loadDeploymentConfig } from "../config.ts";
 import { processDatabase } from "../db/client.ts";
 import { applyMigrations } from "../db/migrate.ts";
+import { runBackfill } from "../ebay/backfill.ts";
 import { EbayClient } from "../ebay/client.ts";
 import { tryLoadEbayCredentials } from "../ebay/credentials.ts";
 import { runForwardScan } from "../ebay/scanner.ts";
@@ -33,14 +34,36 @@ export default {
 		applyMigrations(handle, config.migrationsDir);
 
 		const client = new EbayClient(credentials, fetch);
+		const now = () => Date.now();
+
+		// A spent backfill resumes here every cycle until each enabled marketplace is marked
+		// complete. Forward scan then runs only for those that are.
+		const backfill = await runBackfill({
+			db: handle.db,
+			client,
+			now,
+			log: (message) => console.log(message),
+		});
+		const backfillSummary = backfill.marketplaces
+			.map((entry) => {
+				if (!entry.ran && entry.complete) return `${entry.marketplace}=done`;
+				if (!entry.ran) return `${entry.marketplace}=skip`;
+				if (entry.error !== undefined) return `${entry.marketplace}=fail`;
+				if (entry.complete) return `${entry.marketplace}=done:${entry.itemsSeen}`;
+				return `${entry.marketplace}=partial:${entry.itemsSeen}`;
+			})
+			.join(" ");
+		console.log(`scan: backfill horizonDays=${backfill.horizonDays} ${backfillSummary}`);
+
 		const result = await runForwardScan({
 			db: handle.db,
 			client,
-			now: () => Date.now(),
+			now,
 		});
 
 		const summary = result.marketplaces
 			.map((entry) => {
+				if (entry.skipped === "backfill-incomplete") return `${entry.marketplace}=wait-backfill`;
 				if (!entry.ran) return `${entry.marketplace}=skip`;
 				if (entry.error !== undefined) return `${entry.marketplace}=fail`;
 				return `${entry.marketplace}=${entry.itemsUpserted}`;
