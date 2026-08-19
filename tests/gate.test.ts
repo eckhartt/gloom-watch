@@ -45,13 +45,17 @@ describe("the shared-secret gate", () => {
 		const response = await app().request(HEALTH_PATH);
 		expect(response.status).toBe(401);
 		const body = (await response.json()) as { unlock: string };
-		expect(body.unlock).toBe(UNLOCK_PATH);
+		expect(body.unlock).toBe(UNLOCK_API_PATH);
 	});
 
 	it("lets the unlock form and the eBay callback through without a cookie", async () => {
 		const unlock = await app().request(UNLOCK_PATH);
 		expect(unlock.status).toBe(200);
 		expect(await unlock.text()).toContain("Shared secret");
+
+		const apiUnlock = await app().request(UNLOCK_API_PATH);
+		expect(apiUnlock.status).toBe(200);
+		expect(await apiUnlock.text()).toContain("Shared secret");
 
 		const challenge = await app({
 			GLOOM_WATCH_SHARED_SECRET: SECRET,

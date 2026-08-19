@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { logger } from "hono/logger";
 import type { HealthDocument } from "../shared/contract.ts";
@@ -93,10 +93,15 @@ export function createApp(deps: AppDependencies): Hono {
 
 	app.use("*", gateMiddleware(secret));
 
-	app.get(UNLOCK_PATH, (c) => {
+	const serveUnlockPage = (c: Context) => {
 		c.header("Cache-Control", "no-store");
 		return c.html(unlockPageHtml());
-	});
+	};
+
+	app.get(UNLOCK_PATH, serveUnlockPage);
+	// Same document under `/api`, because the *currently installed* service worker intercepts
+	// every navigation except `/api/` and would otherwise replace `/unlock` with the app shell.
+	app.get(UNLOCK_API_PATH, serveUnlockPage);
 
 	app.post(UNLOCK_API_PATH, async (c) => {
 		c.header("Cache-Control", "no-store");

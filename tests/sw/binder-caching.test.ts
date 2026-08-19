@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	CORPUS_IMAGE_CACHE,
+	isAppShellNavigation,
 	isBinderDocumentPath,
 	isCorpusImagePath,
 } from "../../client/sw/caching.ts";
@@ -60,5 +61,14 @@ describe("the binder document route", () => {
 		expect(isBinderDocumentPath("/binder")).toBe(false);
 		expect(isBinderDocumentPath("/api/health")).toBe(false);
 		expect(isBinderDocumentPath("/api/listings")).toBe(false);
+	});
+});
+
+describe("app-shell navigation", () => {
+	it("does not claim /unlock, so the server gate is not replaced by Not Found", () => {
+		expect(isAppShellNavigation("/unlock")).toBe(false);
+		expect(isAppShellNavigation("/api/unlock")).toBe(false);
+		expect(isAppShellNavigation("/")).toBe(true);
+		expect(isAppShellNavigation("/feed")).toBe(true);
 	});
 });

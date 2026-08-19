@@ -41,3 +41,16 @@ export function isCorpusImagePath(pathname: string): boolean {
 export function isBinderDocumentPath(pathname: string): boolean {
 	return pathname === "/api/binder";
 }
+
+/**
+ * Navigations the service worker must **not** answer with the app shell.
+ *
+ * Workbox's `NavigationRoute` serves precached `index.html` for every navigation except this
+ * list. `/unlock` is a real HTML document from the server. Intercepting it hands TanStack
+ * Router a URL it has no route for, and the owner sees "Not Found" instead of the gate.
+ */
+export const APP_SHELL_NAVIGATION_DENYLIST: readonly RegExp[] = [/^\/api\//, /^\/unlock(?:\/|$)/];
+
+export function isAppShellNavigation(pathname: string): boolean {
+	return !APP_SHELL_NAVIGATION_DENYLIST.some((pattern) => pattern.test(pathname));
+}

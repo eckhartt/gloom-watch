@@ -10,6 +10,7 @@ import {
 import { NavigationRoute, registerRoute } from "workbox-routing";
 import { CacheFirst, NetworkFirst } from "workbox-strategies";
 import {
+	APP_SHELL_NAVIGATION_DENYLIST,
 	BINDER_DOCUMENT_CACHE,
 	CORPUS_IMAGE_CACHE,
 	CORPUS_IMAGE_CACHE_MAX_AGE_SECONDS,
@@ -53,7 +54,7 @@ precacheAndRoute(self.__WB_MANIFEST);
 // health is server state and must never be answered from a cache.
 registerRoute(
 	new NavigationRoute(createHandlerBoundToURL("index.html"), {
-		denylist: [/^\/api\//],
+		denylist: [...APP_SHELL_NAVIGATION_DENYLIST],
 	}),
 );
 
