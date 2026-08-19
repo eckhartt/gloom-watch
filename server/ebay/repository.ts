@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import type { ListingDocument, Marketplace, ScanHealth } from "../../shared/listings.ts";
 import {
 	DEFAULT_DAILY_CALL_BUDGET,
@@ -347,6 +347,31 @@ export function readListing(
 	const row = db.select().from(listings).where(eq(listings.itemId, itemId)).get();
 	if (row === undefined) return null;
 	return toListingDocument(row, now, loadMatcherCorpus(db));
+}
+
+/**
+ * Listings the scanner first observed at or after `since`. The seen-set, not `observed_at`:
+ * a re-scan updates the observation clock without minting a new first-seen, so a relist
+ * under the same `itemId` is not treated as news.
+ */
+export function readListingsFirstSeenSince(
+	db: GloomDatabase,
+	since: number,
+	now: number,
+): ListingDocument[] {
+	const ids = db
+		.select({ itemId: seenItems.itemId })
+		.from(seenItems)
+		.where(gte(seenItems.firstSeenAt, since))
+		.all();
+	if (ids.length === 0) return [];
+	const corpus = loadMatcherCorpus(db);
+	const documents: ListingDocument[] = [];
+	for (const id of ids) {
+		const row = db.select().from(listings).where(eq(listings.itemId, id.itemId)).get();
+		if (row !== undefined) documents.push(toListingDocument(row, now, corpus));
+	}
+	return documents;
 }
 
 export function readScanHealth(

@@ -14,6 +14,12 @@ import type { CopyGrader } from "./copies.ts";
 /** Bumped when the function that produces a resolution changes. */
 export const MATCHER_VERSION = "matcher-1";
 
+/**
+ * Starting value of `match_confidence_threshold`. `>=` may auto-match (and therefore push);
+ * below it the listing waits for the confirm queue and never notifies.
+ */
+export const DEFAULT_MATCH_CONFIDENCE_THRESHOLD = 0.85;
+
 export type MatchGrain = "variant" | "card" | "none";
 
 /** Filtered listings stay in the feed with a reason. They are never silently dropped. */
