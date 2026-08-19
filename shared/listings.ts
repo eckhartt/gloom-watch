@@ -94,6 +94,16 @@ export function listingPath(itemId: string): string {
 }
 
 /**
+ * The in-app listing view — the notification tap target.
+ *
+ * Same-origin and inside the manifest scope. Deep-linking to eBay is impossible from a
+ * declarative `navigate`. The item id is encoded because eBay's identifiers carry pipes.
+ */
+export function listingFeedPath(itemId: string): string {
+	return `/feed/${encodeURIComponent(itemId)}`;
+}
+
+/**
  * One listing as the feed may show it.
  *
  * **No seller hash. No seller username. No raw payload.** Price is omitted once the observation

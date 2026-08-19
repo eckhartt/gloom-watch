@@ -2,9 +2,9 @@
  * The listing feed. Each row carries the matcher's resolution and explicit queue state;
  * no price-as-current past six hours.
  *
- * A listing detail route has to resolve on a cold load — it is the notification tap target
- * once that ticket lands, and the service worker may have no warm state. The collection
- * itself is `/api/listings`; one item is `/api/listings/{itemId}`.
+ * A listing detail route has to resolve on a cold load — it is the notification tap target,
+ * and the service worker may have no warm state. The collection itself is `/api/listings`;
+ * one item is `/api/listings/{itemId}`. The in-app view is `/feed/{itemId}`.
  */
 
 import { Hono } from "hono";

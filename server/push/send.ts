@@ -57,7 +57,7 @@ export interface PushSenderOptions {
 
 export interface PushSendRequest {
 	readonly content: PushNotificationContent;
-	/** What prompted this push. `test` here; the notification-policy ticket adds the rest. */
+	/** What prompted this push. `test`, `instant`; `digest` and `gap-recovery` later. */
 	readonly kind: string;
 }
 

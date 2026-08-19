@@ -58,6 +58,18 @@ export function ensureVapidEnvironment(
 	loadEnvironmentFile({ env });
 }
 
+/** `null` rather than a throw, for the cron job that should log and skip when unset. */
+export function tryLoadVapidConfig(
+	env: Record<string, string | undefined> = process.env,
+): VapidConfig | null {
+	try {
+		return loadVapidConfig(env);
+	} catch (error) {
+		if (error instanceof VapidNotConfiguredError) return null;
+		throw error;
+	}
+}
+
 /** Throws `VapidNotConfiguredError` if anything is missing. Never reports a value. */
 export function loadVapidConfig(
 	env: Record<string, string | undefined> = process.env,

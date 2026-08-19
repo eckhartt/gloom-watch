@@ -63,8 +63,9 @@ export type CopyDisposalKind = (typeof COPY_DISPOSAL_KINDS)[number];
 export const CERT_NO_MAX_LENGTH = 30;
 
 /**
- * Priority is **0–3, on the variant**, and `priority_instant_level` (default 3) is the rung that
- * earns an instant push rather than a place in the next digest.
+ * Priority is **0–3, on the variant**, and `priority_instant_level`
+ * (`DEFAULT_PRIORITY_INSTANT_LEVEL`, 3) is the rung that earns an instant push rather than a
+ * place in the next digest.
  *
  * It belongs to the variant rather than to a copy because by definition there is no copy — it is
  * the dial for a card the owner does *not* hold. There is no want-list: anything unowned is
@@ -74,6 +75,8 @@ export const MIN_PRIORITY = 0;
 export const MAX_PRIORITY = 3;
 /** Every rung, lowest first — what a control offers, so nobody re-derives the range by arithmetic. */
 export const PRIORITY_LEVELS = [0, 1, 2, 3] as const;
+/** Starting value of `priority_instant_level`. Instant push, not digest, at or above this rung. */
+export const DEFAULT_PRIORITY_INSTANT_LEVEL = 3;
 
 /**
  * Grade is an **integer in tenths**, so `PSA 8.5` is `85` and compares exactly against a grade
