@@ -32,6 +32,24 @@ import {
 import { UNLOCK_PATH } from "../shared/gate.ts";
 import type { ListingDocument, ListingsDocument } from "../shared/listings.ts";
 import { LISTINGS_PATH, listingPath } from "../shared/listings.ts";
+import type {
+	AliasCreateRequest,
+	AliasDocument,
+	AliasListDocument,
+	AliasPatchRequest,
+	QueueConfirmRequest,
+	QueueDocument,
+	QueuePickVariantRequest,
+	QueueResolutionDocument,
+} from "../shared/queue.ts";
+import {
+	ALIASES_PATH,
+	aliasPath,
+	QUEUE_PATH,
+	queueConfirmPath,
+	queueRejectPath,
+	queueVariantPath,
+} from "../shared/queue.ts";
 
 export class ApiError extends Error {
 	readonly status: number;
@@ -190,4 +208,51 @@ export function fetchListings(
 
 export function fetchListing(itemId: string, signal?: AbortSignal): Promise<ListingDocument> {
 	return getJson<ListingDocument>(listingPath(itemId), signal);
+}
+
+export function fetchQueue(signal?: AbortSignal): Promise<QueueDocument> {
+	return getJson<QueueDocument>(QUEUE_PATH, signal);
+}
+
+export function confirmQueuedListing(
+	itemId: string,
+	request: QueueConfirmRequest & { readonly aliasId?: string },
+): Promise<QueueResolutionDocument> {
+	return sendJson<QueueResolutionDocument>(queueConfirmPath(itemId), "POST", request);
+}
+
+export function pickQueuedVariant(
+	itemId: string,
+	request: QueuePickVariantRequest & { readonly aliasId?: string },
+): Promise<QueueResolutionDocument> {
+	return sendJson<QueueResolutionDocument>(queueVariantPath(itemId), "POST", request);
+}
+
+export function rejectQueuedListing(itemId: string): Promise<QueueResolutionDocument> {
+	return sendJson<QueueResolutionDocument>(queueRejectPath(itemId), "POST", {});
+}
+
+export function fetchAliases(signal?: AbortSignal): Promise<AliasListDocument> {
+	return getJson<AliasListDocument>(ALIASES_PATH, signal);
+}
+
+export function createAlias(request: AliasCreateRequest): Promise<AliasDocument> {
+	return sendJson<AliasDocument>(ALIASES_PATH, "POST", request);
+}
+
+export function updateAlias(id: string, patch: AliasPatchRequest): Promise<AliasDocument> {
+	return sendJson<AliasDocument>(aliasPath(id), "PATCH", patch);
+}
+
+export async function deleteAlias(id: string): Promise<void> {
+	const response = await fetch(aliasPath(id), {
+		method: "DELETE",
+		headers: { accept: "application/json" },
+	});
+	if (response.status === 401 && typeof window !== "undefined") {
+		window.location.assign(UNLOCK_PATH);
+	}
+	if (!response.ok && response.status !== 204) {
+		throw new ApiError(response.status, `DELETE ${aliasPath(id)} responded ${response.status}`);
+	}
 }

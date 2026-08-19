@@ -310,6 +310,114 @@ main.binder {
 	color: var(--ink-dim);
 }
 
+.queue-field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	margin-top: 0.65rem;
+	font-size: 0.75rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--ink-dim);
+}
+
+.queue-field input {
+	font: inherit;
+	text-transform: none;
+	letter-spacing: 0;
+	color: var(--ink);
+	background: var(--ground);
+	border: 1px solid var(--rule);
+	border-radius: 4px;
+	padding: 0.4rem 0.5rem;
+}
+
+.queue-candidates {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-top: 0.75rem;
+}
+
+.queue-candidate {
+	flex: 1 1 9rem;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.2rem;
+	padding: 0.6rem 0.7rem;
+	background: var(--ground);
+	border: 1px solid var(--rule);
+	border-radius: 4px;
+	color: var(--ink);
+	text-align: left;
+	cursor: pointer;
+}
+
+.queue-candidate:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.queue-owned {
+	color: var(--leaf);
+	font-size: 0.75rem;
+}
+
+.queue-needed {
+	color: var(--alarm);
+	font-size: 0.75rem;
+}
+
+.queue-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-top: 0.75rem;
+}
+
+.queue-actions button,
+.alias-row button {
+	font: inherit;
+	font-size: 0.8125rem;
+	padding: 0.4rem 0.7rem;
+	border-radius: 4px;
+	border: 1px solid var(--rule);
+	background: var(--panel);
+	color: var(--ink);
+	cursor: pointer;
+}
+
+.queue-actions button.danger,
+.alias-row button.danger {
+	color: var(--alarm);
+}
+
+.alias-list {
+	list-style: none;
+	padding: 0;
+	margin: 0.75rem 0 0;
+}
+
+.alias-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.55rem 0;
+	border-top: 1px solid var(--rule);
+}
+
+.alias-row input {
+	font: inherit;
+	flex: 1 1 10rem;
+	background: var(--ground);
+	border: 1px solid var(--rule);
+	border-radius: 4px;
+	color: var(--ink);
+	padding: 0.35rem 0.5rem;
+}
+
 /*
  * The filter row — a control strip, not a summary.
  *

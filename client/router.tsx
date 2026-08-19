@@ -4,6 +4,7 @@ import { parseFeedSearch } from "./feed-filters.ts";
 import { BinderScreen } from "./routes/binder.tsx";
 import { FeedScreen, ListingDetailScreen } from "./routes/feed.tsx";
 import { HomeScreen } from "./routes/home.tsx";
+import { QueueScreen } from "./routes/queue.tsx";
 
 /**
  * Code-based routing rather than file-based: no generated `routeTree.gen.ts` to keep in sync,
@@ -60,7 +61,19 @@ const listingRoute = createRoute({
 	component: ListingDetailScreen,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, statusRoute, feedRoute, listingRoute]);
+const queueRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/queue",
+	component: QueueScreen,
+});
+
+const routeTree = rootRoute.addChildren([
+	indexRoute,
+	statusRoute,
+	feedRoute,
+	listingRoute,
+	queueRoute,
+]);
 
 export const router = createRouter({ routeTree });
 

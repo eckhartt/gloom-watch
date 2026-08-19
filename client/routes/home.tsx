@@ -82,6 +82,8 @@ function ScanPanel({
 				<Link to="/feed" search={{ location: ["AU"] }}>
 					open the feed
 				</Link>
+				{" · "}
+				<Link to="/queue">confirm queue</Link>
 			</p>
 			<dl>
 				<Row label="Cycle" value={String(scan.cycle)} />
@@ -201,6 +203,14 @@ export function HomeScreen() {
 							}
 						/>
 						<Row label="Migrations applied" value={String(health.data.migrationsApplied)} />
+						<Row
+							label="Confirm queue"
+							value={
+								health.data.confirmQueueDepth === 0
+									? "empty"
+									: `${health.data.confirmQueueDepth} waiting`
+							}
+						/>
 						<Row
 							label="Server clock"
 							value={formatInstant(health.data.serverTimeMs, health.data.timezone)}

@@ -19,6 +19,7 @@ import {
 } from "../../shared/copies.ts";
 import { MARKETPLACES } from "../../shared/listings.ts";
 import { PUSH_TRANSPORTS } from "../../shared/push.ts";
+import { QUEUE_STATES } from "../../shared/queue.ts";
 
 /**
  * `app_state` is a key/value store of server-owned scalars — the commissioning timezone, when
@@ -27,8 +28,9 @@ import { PUSH_TRANSPORTS } from "../../shared/push.ts";
  * the owner edits, and folding a job heartbeat into that table would confuse configuration with
  * health the moment either grows.
  *
- * Photographs and aliases are later tickets and are not modelled here. Listings live in
- * their own tables further down — a field whitelist, never a raw payload.
+ * Photographs are a later ticket and are not modelled here. Listings live in their own
+ * tables further down — a field whitelist, never a raw payload. Aliases and queue state
+ * sit at the bottom of this file so a listing expiry cannot take an owner ruling with it.
  */
 export const appState = sqliteTable("app_state", {
 	key: text("key").primaryKey(),
@@ -660,3 +662,64 @@ export const scanBudget = sqliteTable("scan_budget", {
 });
 
 export type ScanBudgetRow = typeof scanBudget.$inferSelect;
+
+/**
+ * Owner-authored mapping from a phrase seen in the wild to a card, or a variant.
+ *
+ * Client-minted UUID so an outbox replay is one row. Phrase is unique: teaching the same
+ * wording twice updates the target rather than stacking mappings the matcher would have
+ * to pick between. `variant_id` is optional — card grain is the ordinary confirm; picking
+ * a variant writes one and is what drains the queue for a partly-owned card.
+ *
+ * Survives listing expiry and a corpus re-import. The sync never names this table.
+ */
+export const aliases = sqliteTable(
+	"aliases",
+	{
+		id: text("id").primaryKey(),
+		phrase: text("phrase").notNull(),
+		cardKey: text("card_key")
+			.notNull()
+			.references(() => corpusCards.cardKey),
+		/** Null is card grain. Set only when the owner picked a printing. */
+		variantId: text("variant_id"),
+		createdAt: integer("created_at").notNull(),
+		updatedAt: integer("updated_at").notNull(),
+	},
+	(table) => [
+		uniqueIndex("aliases_phrase_idx").on(table.phrase),
+		index("aliases_card_idx").on(table.cardKey),
+	],
+);
+
+export type AliasRow = typeof aliases.$inferSelect;
+
+/**
+ * Explicit queue membership for one eBay item id.
+ *
+ * **Not a column on `listings`.** The listing row is eBay content and expires at 90 days;
+ * the owner's ruling (`resolved` / `not_a_match`) does not. No foreign key onto `listings`,
+ * so expiry and a seller-deletion purge cannot take the ruling with them. A relist of the
+ * same `item_id` finds the terminal state and never re-queues.
+ */
+export const listingQueueStates = sqliteTable(
+	"listing_queue_states",
+	{
+		itemId: text("item_id").primaryKey(),
+		state: text("state", { enum: QUEUE_STATES }).notNull(),
+		/** The phrase taught when the owner confirmed or picked a variant. */
+		phrase: text("phrase"),
+		resolvedCardKey: text("resolved_card_key"),
+		resolvedVariantId: text("resolved_variant_id"),
+		updatedAt: integer("updated_at").notNull(),
+	},
+	(table) => [
+		index("listing_queue_states_state_idx").on(table.state),
+		check(
+			"listing_queue_states_known",
+			sql`${table.state} in ('unattempted', 'auto_matched', 'queued', 'resolved', 'not_a_match')`,
+		),
+	],
+);
+
+export type ListingQueueStateRow = typeof listingQueueStates.$inferSelect;

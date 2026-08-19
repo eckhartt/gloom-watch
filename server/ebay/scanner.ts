@@ -15,7 +15,7 @@ import {
 	readCursor,
 	rememberCategory,
 	seedCursors,
-	upsertObserved,
+	upsertObservedAndScore,
 	writeCursorFailure,
 	writeCursorSuccess,
 } from "./repository.ts";
@@ -295,7 +295,7 @@ function persistPage(
 ): number {
 	let created = 0;
 	for (const item of items) {
-		if (upsertObserved(db, item, marketplace, now).created) created += 1;
+		if (upsertObservedAndScore(db, item, marketplace, now).created) created += 1;
 	}
 	return created;
 }

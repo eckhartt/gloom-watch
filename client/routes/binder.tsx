@@ -332,6 +332,9 @@ export function BinderScreen() {
 					<Link to="/feed" search={{ location: ["AU"] }} className="binder-link">
 						feed
 					</Link>
+					<Link to="/queue" className="binder-link">
+						queue
+					</Link>
 					<Link to="/status" className="binder-link">
 						status
 					</Link>

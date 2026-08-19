@@ -43,6 +43,13 @@
       "when": 1787047497877,
       "tag": "0005_ebay_listings",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1787140710991,
+      "tag": "0006_aliases_and_queue",
+      "breakpoints": true
     }
   ]
 }

@@ -90,6 +90,8 @@ export function FeedScreen() {
 				<p className="subtitle">
 					<Link to="/">← the binder</Link>
 					{" · "}
+					<Link to="/queue">queue</Link>
+					{" · "}
 					<Link to="/status">status</Link>
 				</p>
 			</header>

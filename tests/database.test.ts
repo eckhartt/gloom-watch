@@ -102,6 +102,33 @@ describe("the committed migration", () => {
 		expect(columns).toEqual(["item_id", "first_seen_at", "last_seen_at"]);
 	});
 
+	it("creates aliases with a client-minted id and optional variant", () => {
+		const columns = temp.handle.sqlite
+			.query<{ name: string }, []>("PRAGMA table_info(aliases)")
+			.all()
+			.map((c) => c.name);
+		expect(columns).toEqual(["id", "phrase", "card_key", "variant_id", "created_at", "updated_at"]);
+	});
+
+	it("creates listing queue states that outlive the listings table", () => {
+		const columns = temp.handle.sqlite
+			.query<{ name: string }, []>("PRAGMA table_info(listing_queue_states)")
+			.all()
+			.map((c) => c.name);
+		expect(columns).toEqual([
+			"item_id",
+			"state",
+			"phrase",
+			"resolved_card_key",
+			"resolved_variant_id",
+			"updated_at",
+		]);
+		const fks = temp.handle.sqlite
+			.query<{ table: string }, []>("PRAGMA foreign_key_list(listing_queue_states)")
+			.all();
+		expect(fks).toEqual([]);
+	});
+
 	it("creates per-marketplace scan cursors", () => {
 		const columns = temp.handle.sqlite
 			.query<{ name: string }, []>("PRAGMA table_info(scan_cursors)")

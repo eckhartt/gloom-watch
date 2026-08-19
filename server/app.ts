@@ -5,6 +5,7 @@ import type { HealthDocument } from "../shared/contract.ts";
 import { HEALTH_PATH } from "../shared/contract.ts";
 import { UNLOCK_API_PATH, UNLOCK_PATH } from "../shared/gate.ts";
 import { PUSH_BASE_PATH } from "../shared/push.ts";
+import { createAliasRoutes } from "./aliases/http.ts";
 import { createBinderRoutes } from "./binder/http.ts";
 import { createCopyRoutes } from "./copies/http.ts";
 import { type CorpusSyncStarter, createCorpusRoutes } from "./corpus/http.ts";
@@ -24,6 +25,8 @@ import {
 	unlockPageHtml,
 } from "./gate.ts";
 import { createPushRoutes } from "./push/routes.ts";
+import { createQueueRoutes, readConfirmQueueDepth } from "./queue/http.ts";
+import { scoreUnscoredListings } from "./queue/score.ts";
 
 export interface AppDependencies {
 	readonly handle: DatabaseHandle;
@@ -136,6 +139,8 @@ export function createApp(deps: AppDependencies): Hono {
 
 	app.get(HEALTH_PATH, (c) => {
 		const db = deps.handle.db;
+		const at = now();
+		scoreUnscoredListings(db, at);
 		const body: HealthDocument = {
 			service: "gloom-watch",
 			timezone: readAppState(db, APP_STATE_KEYS.timezone) ?? "UTC",
@@ -144,8 +149,9 @@ export function createApp(deps: AppDependencies): Hono {
 			migrationsApplied: countAppliedMigrations(deps.handle),
 			corpusLastSyncedAt: readLastSuccessfulSyncAt(db),
 			corpusVariantCount: countVariants(db),
-			scan: readScanHealth(db, now()),
-			serverTimeMs: now(),
+			scan: readScanHealth(db, at),
+			confirmQueueDepth: readConfirmQueueDepth(db),
+			serverTimeMs: at,
 		};
 		// The binder document is cacheable and revalidates on an ETag; health never is.
 		c.header("Cache-Control", "no-store");
@@ -167,6 +173,10 @@ export function createApp(deps: AppDependencies): Hono {
 	app.route("/", createCopyRoutes({ db: deps.handle.db, now }));
 
 	app.route("/", createListingRoutes({ db: deps.handle.db, now }));
+
+	app.route("/", createQueueRoutes({ db: deps.handle.db, now }));
+
+	app.route("/", createAliasRoutes({ db: deps.handle.db, now }));
 
 	app.route(
 		"/",

@@ -149,6 +149,11 @@ export interface HealthDocument {
 	readonly corpusVariantCount: number;
 	/** Per-marketplace cursors and the day's call spend. Present even before the first scan. */
 	readonly scan: ScanHealth;
+	/**
+	 * How many listings are waiting on the owner. Queue depth is a health signal —
+	 * growing fast means the parser needs work.
+	 */
+	readonly confirmQueueDepth: number;
 	/** UTC epoch ms at the moment the request was served. */
 	readonly serverTimeMs: number;
 }

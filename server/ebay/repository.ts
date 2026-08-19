@@ -10,13 +10,17 @@ import {
 	MARKETPLACES,
 	US_CATEGORY_ID,
 } from "../../shared/listings.ts";
-import type { MatcherCorpus } from "../../shared/matcher.ts";
+import type { MatcherAlias, MatcherCorpus } from "../../shared/matcher.ts";
+import type { QueueState } from "../../shared/queue.ts";
+import { loadMatcherAliases } from "../aliases/repository.ts";
 import { APP_STATE_KEYS, readAppStateNumber } from "../db/app-state.ts";
 import type { GloomDatabase } from "../db/client.ts";
 import type { ListingRow } from "../db/schema.ts";
 import { listings, scanCursors, seenItems } from "../db/schema.ts";
 import { loadMatcherCorpus } from "../matcher/corpus.ts";
 import { resolveListing } from "../matcher/resolve.ts";
+import { queueStateOf, readQueueState, readQueueStates } from "../queue/repository.ts";
+import { loadScoreContext, scoreItemIds, scoreListing } from "../queue/score.ts";
 import { readCallsUsed, utcDay } from "./budget.ts";
 import type { ObservedListing } from "./whitelist.ts";
 
@@ -196,6 +200,18 @@ export function upsertObserved(
 	return { created: existing === undefined && seen === undefined };
 }
 
+/** Persist and score. Scanner and tests that want a queued row go through here. */
+export function upsertObservedAndScore(
+	db: GloomDatabase,
+	observed: ObservedListing,
+	marketplace: Marketplace,
+	now: number,
+): { readonly created: boolean; readonly queueState: QueueState } {
+	const result = upsertObserved(db, observed, marketplace, now);
+	const scored = scoreListing(db, observed.itemId, loadScoreContext(db, now));
+	return { created: result.created, queueState: scored.state };
+}
+
 /**
  * Delete listing rows whose observation is older than 90 days.
  *
@@ -237,6 +253,8 @@ export function toListingDocument(
 	row: ListingRow,
 	now: number,
 	corpus: MatcherCorpus,
+	aliases: readonly MatcherAlias[] = [],
+	queueState: QueueState = "unattempted",
 ): ListingDocument {
 	const ageMs = Math.max(0, now - row.observedAt);
 	const stale = ageMs > DISPLAY_FRESHNESS_MS;
@@ -261,7 +279,9 @@ export function toListingDocument(
 				aspects: parseAspects(row.aspects),
 			},
 			corpus,
+			aliases,
 		),
+		queueState,
 	};
 }
 
@@ -335,8 +355,20 @@ export function readRecentListings(
 		)
 		.limit(limit)
 		.all();
+	scoreItemIds(
+		db,
+		rows.map((row) => row.itemId),
+		now,
+	);
 	const corpus = loadMatcherCorpus(db);
-	return rows.map((row) => toListingDocument(row, now, corpus));
+	const aliases = loadMatcherAliases(db);
+	const states = readQueueStates(
+		db,
+		rows.map((row) => row.itemId),
+	);
+	return rows.map((row) =>
+		toListingDocument(row, now, corpus, aliases, queueStateOf(states.get(row.itemId) ?? null)),
+	);
 }
 
 export function readListing(
@@ -346,7 +378,14 @@ export function readListing(
 ): ListingDocument | null {
 	const row = db.select().from(listings).where(eq(listings.itemId, itemId)).get();
 	if (row === undefined) return null;
-	return toListingDocument(row, now, loadMatcherCorpus(db));
+	scoreListing(db, itemId, loadScoreContext(db, now));
+	return toListingDocument(
+		row,
+		now,
+		loadMatcherCorpus(db),
+		loadMatcherAliases(db),
+		queueStateOf(readQueueState(db, itemId)),
+	);
 }
 
 export function readScanHealth(

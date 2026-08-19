@@ -107,6 +107,11 @@ export interface ListingDocument {
 	readonly ageMs: number;
 	/** What the matcher made of the title. Computed at read time; never an ownership write. */
 	readonly match: ListingResolution;
+	/**
+	 * Explicit queue membership. Never derived from `match.confidence` at the wire —
+	 * `not_a_match` and `unattempted` have to stay distinguishable.
+	 */
+	readonly queueState: "unattempted" | "auto_matched" | "queued" | "resolved" | "not_a_match";
 }
 
 export interface LocationFacet {
