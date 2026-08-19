@@ -35,6 +35,11 @@ describe("the binder document", () => {
 		});
 	}
 
+	it("marks imported rows as tcgdex provenance", () => {
+		const document = build();
+		expect(document.entries.every((entry) => entry.provenance === "tcgdex")).toBe(true);
+	});
+
 	it("carries every variant, unpaginated, in one document", () => {
 		// The property the whole ticket rests on: one request is the masterset, not a page of it.
 		// A route that quietly capped its result would take offline browsing with it.

@@ -95,6 +95,12 @@ export interface BinderEntry {
 	/** Flagged, not deleted, when upstream stopped carrying it. A completion-denominator input. */
 	readonly missingUpstream: boolean;
 	/**
+	 * Where the *row* came from. Hand-added rows are first class and count toward completion; a
+	 * corpus re-import never touches them. The sheet uses this to offer edit/delete only on
+	 * rows the owner typed, never on an upstream printing.
+	 */
+	readonly provenance: "tcgdex" | "manual";
+	/**
 	 * How many copies at `status = 'owned'` point at this variant. `0` means needed.
 	 *
 	 * A count rather than a boolean because a PSA 9 and a raw copy of one variant are two rows.

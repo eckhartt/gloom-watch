@@ -3,7 +3,8 @@ import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BinderEntry } from "../../shared/contract.ts";
-import { corpusCardImagePath } from "../../shared/contract.ts";
+import { binderEntryKey, corpusCardImagePath } from "../../shared/contract.ts";
+import type { ManualVariantDocument } from "../../shared/manual.ts";
 import { CopiesPanel } from "../binder/copies-panel.tsx";
 import { FilterSheet } from "../binder/filter-sheet.tsx";
 import type { BinderFilters, FilterAxis } from "../binder/filters.ts";
@@ -19,6 +20,7 @@ import {
 	setFilterNumber,
 	toggleFilterValue,
 } from "../binder/filters.ts";
+import { BlankManualEntry, ManualVariantControls } from "../binder/manual-form.tsx";
 import {
 	axisRows,
 	cellPresentation,
@@ -148,7 +150,17 @@ function BinderCell({
  * scroll offset and the sheet is not itself scrolled away. Escape and the backdrop both dismiss,
  * because a Home Screen web app has no browser chrome to fall back on.
  */
-function BinderSheet({ entry, onClose }: { entry: BinderEntry; onClose: () => void }) {
+function BinderSheet({
+	entry,
+	onClose,
+	onCreated,
+	onDeleted,
+}: {
+	entry: BinderEntry;
+	onClose: () => void;
+	onCreated: (created: ManualVariantDocument) => void;
+	onDeleted: () => void;
+}) {
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key === "Escape") onClose();
@@ -196,9 +208,16 @@ function BinderSheet({ entry, onClose }: { entry: BinderEntry; onClose: () => vo
 							// masterset and still counts, and the owner should know upstream dropped it.
 							<Fact label="Upstream" value="flagged missing" tone="alarm" />
 						) : null}
+						{entry.provenance === "manual" ? <Fact label="Provenance" value="hand-added" /> : null}
 					</dl>
 				</div>
 
+				<ManualVariantControls
+					key={`manual-${entry.key}`}
+					entry={entry}
+					onCreated={onCreated}
+					onDeleted={onDeleted}
+				/>
 				{/* Keyed on the variant so the panel's own state — a half-filled form, the copy being
 				    edited, an in-flight priority — cannot survive into a different card. Dismissing the
 				    sheet unmounts it today and there is no way to move between variants without
@@ -256,6 +275,7 @@ export function BinderScreen() {
 	const closeFilters = useCallback(() => setFiltersOpen(false), []);
 
 	const [selectedKey, setSelectedKey] = useState<string | null>(null);
+	const [addingBlank, setAddingBlank] = useState(false);
 	// Looked up in the whole document rather than the visible slice, so a sheet already open does
 	// not vanish because the entry behind it stopped matching.
 	const selected = useMemo(
@@ -263,6 +283,19 @@ export function BinderScreen() {
 		[entries, selectedKey],
 	);
 	const closeSheet = useCallback(() => setSelectedKey(null), []);
+
+	const onManualCreated = useCallback(
+		(created: ManualVariantDocument) => {
+			setAddingBlank(false);
+			// Default language filter is EN. A Korean clone would otherwise land in the masterset
+			// and vanish from the grid, which reads as "it didn't save".
+			if (filters.language.length > 0 && !filters.language.includes(created.language)) {
+				applyFilters({ ...filters, language: [...filters.language, created.language] });
+			}
+			setSelectedKey(binderEntryKey(created.cardKey, created.variantId));
+		},
+		[applyFilters, filters],
+	);
 
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const [width, setWidth] = useState(0);
@@ -335,6 +368,13 @@ export function BinderScreen() {
 					<Link to="/status" className="binder-link">
 						status
 					</Link>
+					<button
+						type="button"
+						className="binder-link binder-add"
+						onClick={() => setAddingBlank(true)}
+					>
+						add
+					</button>
 				</span>
 			</div>
 
@@ -457,7 +497,25 @@ export function BinderScreen() {
 				/>
 			) : null}
 
-			{selected === null ? null : <BinderSheet entry={selected} onClose={closeSheet} />}
+			{selected === null ? null : (
+				<BinderSheet
+					entry={selected}
+					onClose={closeSheet}
+					onCreated={onManualCreated}
+					onDeleted={closeSheet}
+				/>
+			)}
+
+			{addingBlank ? (
+				<div className="sheet-layer">
+					<div
+						className="sheet-backdrop"
+						onClick={() => setAddingBlank(false)}
+						aria-hidden="true"
+					/>
+					<BlankManualEntry onCreated={onManualCreated} onCancel={() => setAddingBlank(false)} />
+				</div>
+			) : null}
 		</main>
 	);
 }

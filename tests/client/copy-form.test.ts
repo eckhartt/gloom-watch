@@ -204,6 +204,7 @@ describe("what the sheet says is held", () => {
 			size: "standard",
 			hasImage: true,
 			missingUpstream: false,
+			provenance: "tcgdex",
 			ownedCopies,
 			priority: null,
 		};

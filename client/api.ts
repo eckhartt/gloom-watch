@@ -32,6 +32,20 @@ import {
 import { UNLOCK_PATH } from "../shared/gate.ts";
 import type { ListingDocument, ListingsDocument } from "../shared/listings.ts";
 import { LISTINGS_PATH, listingPath } from "../shared/listings.ts";
+import type {
+	CorpusExclusionDocument,
+	CorpusExclusionListDocument,
+	CorpusExclusionUpsertRequest,
+	ManualVariantCreateRequest,
+	ManualVariantDocument,
+	ManualVariantPatchRequest,
+} from "../shared/manual.ts";
+import {
+	CORPUS_EXCLUSIONS_PATH,
+	corpusExclusionPath,
+	MANUAL_VARIANTS_PATH,
+	manualVariantPath,
+} from "../shared/manual.ts";
 
 export class ApiError extends Error {
 	readonly status: number;
@@ -190,4 +204,65 @@ export function fetchListings(
 
 export function fetchListing(itemId: string, signal?: AbortSignal): Promise<ListingDocument> {
 	return getJson<ListingDocument>(listingPath(itemId), signal);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Hand-added variants and the exclusion list                                  */
+/* -------------------------------------------------------------------------- */
+
+export function createManualVariant(
+	request: ManualVariantCreateRequest,
+): Promise<ManualVariantDocument> {
+	return sendJson<ManualVariantDocument>(MANUAL_VARIANTS_PATH, "POST", request);
+}
+
+export function updateManualVariant(
+	cardKey: string,
+	variantId: string,
+	patch: ManualVariantPatchRequest,
+): Promise<ManualVariantDocument> {
+	return sendJson<ManualVariantDocument>(manualVariantPath(cardKey, variantId), "PATCH", patch);
+}
+
+export async function deleteManualVariant(cardKey: string, variantId: string): Promise<void> {
+	const path = manualVariantPath(cardKey, variantId);
+	const response = await fetch(path, { method: "DELETE", headers: { accept: "application/json" } });
+	if (response.status === 401 && typeof window !== "undefined") {
+		window.location.assign(UNLOCK_PATH);
+	}
+	if (response.status === 204) return;
+	const payload: unknown = await response.json().catch(() => null);
+	const message =
+		typeof payload === "object" && payload !== null && "error" in payload
+			? String((payload as { error: unknown }).error)
+			: `DELETE ${path} responded ${response.status}`;
+	throw new ApiError(response.status, message);
+}
+
+export async function fetchExclusions(
+	signal?: AbortSignal,
+): Promise<readonly CorpusExclusionDocument[]> {
+	const body = await getJson<CorpusExclusionListDocument>(CORPUS_EXCLUSIONS_PATH, signal);
+	return body.exclusions;
+}
+
+export function upsertExclusion(
+	request: CorpusExclusionUpsertRequest,
+): Promise<CorpusExclusionDocument> {
+	return sendJson<CorpusExclusionDocument>(CORPUS_EXCLUSIONS_PATH, "PUT", request);
+}
+
+export async function deleteExclusion(cardKey: string): Promise<void> {
+	const path = corpusExclusionPath(cardKey);
+	const response = await fetch(path, { method: "DELETE", headers: { accept: "application/json" } });
+	if (response.status === 401 && typeof window !== "undefined") {
+		window.location.assign(UNLOCK_PATH);
+	}
+	if (response.status === 204) return;
+	const payload: unknown = await response.json().catch(() => null);
+	const message =
+		typeof payload === "object" && payload !== null && "error" in payload
+			? String((payload as { error: unknown }).error)
+			: `DELETE ${path} responded ${response.status}`;
+	throw new ApiError(response.status, message);
 }
