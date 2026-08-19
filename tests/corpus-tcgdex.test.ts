@@ -5,6 +5,8 @@ import {
 	HttpTcgdexClient,
 	type ImageManifest,
 	lookupImageHash,
+	manualCardKey,
+	manualVariantId,
 	parseImageLocation,
 	parseLanguagesFromError,
 } from "../server/corpus/tcgdex.ts";
@@ -22,6 +24,15 @@ describe("the language list", () => {
 		expect(languages).toContain("es-mx");
 		expect(languages).toContain("zh-tw");
 		expect(languages[0]).toBe("en");
+	});
+
+	it("mints hand-added identities in the reserved namespace", () => {
+		expect(manualCardKey("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")).toBe(
+			"manual:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+		);
+		expect(manualVariantId("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")).toBe(
+			"manual:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+		);
 	});
 
 	it("refuses a list that would collide with the hand-added namespace", () => {

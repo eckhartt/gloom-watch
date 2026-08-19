@@ -264,6 +264,21 @@ main.binder {
 	border-bottom: 1px solid var(--rule);
 }
 
+button.binder-add {
+	min-height: 0;
+	padding: 0;
+	background: transparent;
+	border: none;
+	border-bottom: 1px solid var(--rule);
+	border-radius: 0;
+	color: var(--ink-dim);
+	font: inherit;
+	font-size: inherit;
+	letter-spacing: inherit;
+	text-transform: inherit;
+	cursor: pointer;
+}
+
 .listing-card {
 	background: var(--panel);
 	border: 1px solid var(--rule);
@@ -953,4 +968,19 @@ main.binder {
 	margin-top: 0.75rem;
 	padding-top: 0.75rem;
 	border-top: 1px solid var(--rule);
+}
+
+.exclusion-list {
+	margin-top: 1.25rem;
+	padding-top: 0.75rem;
+	border-top: 1px solid var(--rule);
+}
+
+.exclusion-list h3 {
+	margin: 0 0 0.4rem;
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--ink-dim);
 }

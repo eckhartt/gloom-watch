@@ -154,6 +154,7 @@ export function buildBinderDocument(deps: BinderDocumentDeps): BinderDocument {
 			rarity: corpusCards.rarity,
 			imageByteSize: corpusCards.imageByteSize,
 			cardMissing: corpusCards.missingUpstream,
+			provenance: corpusCards.provenance,
 		})
 		.from(corpusVariants)
 		.innerJoin(corpusCards, eq(corpusCards.cardKey, corpusVariants.cardKey))
@@ -183,6 +184,7 @@ export function buildBinderDocument(deps: BinderDocumentDeps): BinderDocument {
 			hasImage: (row.imageByteSize ?? 0) > 0,
 			// A variant whose *card* vanished upstream is missing too, whatever its own flag says.
 			missingUpstream: row.variantMissing === 1 || row.cardMissing === 1,
+			provenance: row.provenance === "manual" ? "manual" : "tcgdex",
 			ownedCopies: ownership.get(key) ?? 0,
 			priority: priorityByKey.get(key) ?? null,
 		};

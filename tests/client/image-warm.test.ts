@@ -66,6 +66,7 @@ function entry(overrides: Partial<BinderEntry> = {}): BinderEntry {
 		size: "standard",
 		hasImage: true,
 		missingUpstream: false,
+		provenance: "tcgdex",
 		ownedCopies: 0,
 		priority: null,
 		...overrides,

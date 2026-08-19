@@ -1,7 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import type { CorpusStatusDocument, CorpusSyncJobDocument } from "../../shared/contract.ts";
-import { fetchCorpusStatus, startCorpusSync } from "../api.ts";
-import { CORPUS_STATUS_QUERY_KEY, invalidateAfter } from "../collection.ts";
+import {
+	deleteExclusion,
+	fetchCorpusStatus,
+	fetchExclusions,
+	startCorpusSync,
+	upsertExclusion,
+} from "../api.ts";
+import { CORPUS_STATUS_QUERY_KEY, EXCLUSIONS_QUERY_KEY, invalidateAfter } from "../collection.ts";
 
 /**
  * The corpus panel: press sync, watch it run, read the variant count and the last-synced time.
@@ -165,6 +172,114 @@ export function CorpusPanel({
 					{job.unknownAxisValues.map((v) => `${v.axis}=${v.raw}`).join(", ")}
 				</p>
 			) : null}
+
+			<ExclusionList />
 		</section>
+	);
+}
+
+/**
+ * The name-sweep false-positive list. Applied on ingest, never written by a sync, which is why
+ * it is owner-facing data on this screen rather than something a re-import could reconstruct.
+ */
+function ExclusionList() {
+	const queryClient = useQueryClient();
+	const [cardKey, setCardKey] = useState("");
+	const [reason, setReason] = useState("");
+
+	const list = useQuery({
+		queryKey: EXCLUSIONS_QUERY_KEY,
+		queryFn: ({ signal }) => fetchExclusions(signal),
+	});
+
+	const add = useMutation({
+		mutationFn: upsertExclusion,
+		onSuccess: () => {
+			invalidateAfter(queryClient, "manual-write");
+			setCardKey("");
+			setReason("");
+		},
+	});
+
+	const remove = useMutation({
+		mutationFn: deleteExclusion,
+		onSuccess: () => invalidateAfter(queryClient, "manual-write"),
+	});
+
+	return (
+		<div className="exclusion-list">
+			<h3>Exclusion list</h3>
+			<p className="muted">
+				Cards the name sweep would pull in that are not in the line. Applied on the next sync; a
+				re-import never touches this list.
+			</p>
+			{list.isError ? (
+				<p className="error">The exclusions did not load: {(list.error as Error).message}</p>
+			) : null}
+			{list.data !== undefined && list.data.length === 0 ? (
+				<p className="muted">None yet.</p>
+			) : null}
+			{list.data !== undefined && list.data.length > 0 ? (
+				<ul className="copy-list">
+					{list.data.map((row) => (
+						<li key={row.cardKey} className="copy">
+							<div className="copy-lines">
+								<span className="copy-headline">{row.cardKey}</span>
+								{row.reason === null ? null : <span className="muted">{row.reason}</span>}
+							</div>
+							<div className="copy-buttons">
+								<button
+									type="button"
+									className="quiet"
+									onClick={() => remove.mutate(row.cardKey)}
+									disabled={remove.isPending}
+								>
+									Remove
+								</button>
+							</div>
+						</li>
+					))}
+				</ul>
+			) : null}
+			<form
+				className="copy-form"
+				onSubmit={(event) => {
+					event.preventDefault();
+					if (cardKey.trim() === "") return;
+					add.mutate({
+						cardKey: cardKey.trim(),
+						reason: reason.trim() === "" ? null : reason.trim(),
+					});
+				}}
+			>
+				<div className="copy-field">
+					<label htmlFor="exclusion-key">Card key</label>
+					<input
+						id="exclusion-key"
+						value={cardKey}
+						onChange={(e) => setCardKey(e.target.value)}
+						placeholder="en:base1-45"
+						autoComplete="off"
+						spellCheck={false}
+					/>
+				</div>
+				<div className="copy-field">
+					<label htmlFor="exclusion-reason">Reason</label>
+					<input
+						id="exclusion-reason"
+						value={reason}
+						onChange={(e) => setReason(e.target.value)}
+						placeholder="name-sweep false positive"
+					/>
+				</div>
+				<div className="actions">
+					<button type="submit" disabled={add.isPending || cardKey.trim() === ""}>
+						Exclude
+					</button>
+				</div>
+			</form>
+			{add.error === null ? null : <p className="error">{add.error.message}</p>}
+			{remove.error === null ? null : <p className="error">{remove.error.message}</p>}
+		</div>
 	);
 }

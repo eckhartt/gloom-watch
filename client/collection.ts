@@ -57,6 +57,9 @@ export const COMPLETION_QUERY_KEY = ["completion"] as const;
 /** Totals, last-synced and the running job. */
 export const CORPUS_STATUS_QUERY_KEY = ["corpus-status"] as const;
 
+/** The owner-authored exclusion list. A corpus re-import never writes it; this cache is ours. */
+export const EXCLUSIONS_QUERY_KEY = ["corpus-exclusions"] as const;
+
 /** One variant's copies, disposed included. Keyed on the composite identity, never on the variant. */
 export function variantCopiesQueryKey(cardKey: string, variantId: string): readonly string[] {
 	return ["copies", cardKey, variantId];
@@ -70,11 +73,16 @@ export function variantCopiesQueryKey(cardKey: string, variantId: string): reado
  * *down*. That is correct for a masterset and it is exactly the case a client holding yesterday's
  * figure would get wrong.
  */
-export type CollectionEvent = "copy-write" | "corpus-sync";
+export type CollectionEvent = "copy-write" | "corpus-sync" | "manual-write";
 
 export function queryKeysInvalidatedBy(event: CollectionEvent): readonly (readonly string[])[] {
 	if (event === "corpus-sync") {
 		return [BINDER_QUERY_KEY, COMPLETION_QUERY_KEY, CORPUS_STATUS_QUERY_KEY];
+	}
+	if (event === "manual-write") {
+		// A hand-added row changes the denominator and the binder; an exclusion write changes
+		// what the next sync will ingest, which is why the list itself is in this set too.
+		return [BINDER_QUERY_KEY, COMPLETION_QUERY_KEY, CORPUS_STATUS_QUERY_KEY, EXCLUSIONS_QUERY_KEY];
 	}
 	return [BINDER_QUERY_KEY, COMPLETION_QUERY_KEY];
 }

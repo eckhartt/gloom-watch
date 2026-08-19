@@ -172,6 +172,21 @@ export function parseLanguagesFromError(details: string): string[] {
 /** A language code TCGdex will never mint, reserved for the owner's hand-added rows. */
 export const MANUAL_NAMESPACE = "manual";
 
+/**
+ * Hand-added identity: `manual:{uuid}`.
+ *
+ * The uuid is minted by the client so an outbox replay is idempotent. The prefix is applied
+ * server-side so a clone cannot inherit its source's `card_key` even if the client sends one.
+ */
+export function manualCardKey(id: string): string {
+	return `${MANUAL_NAMESPACE}:${id}`;
+}
+
+/** The variant half of a hand-added identity. Same reserved namespace, a different uuid. */
+export function manualVariantId(id: string): string {
+	return `${MANUAL_NAMESPACE}:${id}`;
+}
+
 export function assertLanguagesUsable(languages: readonly string[]): void {
 	if (languages.length === 0) {
 		throw new TcgdexError("upstream returned an empty language list", null);

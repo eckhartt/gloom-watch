@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
 	BINDER_QUERY_KEY,
 	COMPLETION_QUERY_KEY,
+	CORPUS_STATUS_QUERY_KEY,
+	EXCLUSIONS_QUERY_KEY,
 	newCopyId,
 	queryKeysInvalidatedBy,
 	variantCopiesQueryKey,
@@ -24,6 +26,14 @@ describe("what a write invalidates", () => {
 		const keys = queryKeysInvalidatedBy("copy-write");
 		expect(keys).toContainEqual(BINDER_QUERY_KEY);
 		expect(keys).toContainEqual(COMPLETION_QUERY_KEY);
+	});
+
+	it("throws away the binder, completion and the exclusion list when a hand-added row changes", () => {
+		const keys = queryKeysInvalidatedBy("manual-write");
+		expect(keys).toContainEqual(BINDER_QUERY_KEY);
+		expect(keys).toContainEqual(COMPLETION_QUERY_KEY);
+		expect(keys).toContainEqual(CORPUS_STATUS_QUERY_KEY);
+		expect(keys).toContainEqual(EXCLUSIONS_QUERY_KEY);
 	});
 
 	it("throws away completion on a corpus sync too, because the denominator is not constant", () => {
