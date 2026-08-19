@@ -1,12 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import type { ListingDocument } from "../../shared/listings.ts";
+import { describeResolution } from "../../shared/matcher.ts";
 import { formatMoney } from "../../shared/money.ts";
 import { fetchHealth, fetchListing, fetchListings } from "../api.ts";
 import { searchFromFeed, toggleLocation } from "../feed-filters.ts";
 
 /**
- * The listing feed. Listings land here from the scanner; nothing is matched yet.
+ * The listing feed. Each card shows the matcher's grain so a card-grain result is visible
+ * rather than looking like a variant the owner does not actually have.
  *
  * Prices older than six hours are omitted by the server and the age is a sentence, not a
  * timestamp — eBay's display-freshness term requires the disclosure, and hiding the price
@@ -50,6 +52,9 @@ function ListingCard({ listing, timezone }: { listing: ListingDocument; timezone
 			<p className="listing-meta muted">
 				seen {formatSeenAt(listing.observedAt, timezone)}
 				{listing.itemLocationCountry !== null ? ` · ${listing.itemLocationCountry}` : ""}
+			</p>
+			<p className={`listing-match listing-match-${listing.match.grain}`}>
+				{describeResolution(listing.match)}
 			</p>
 			{listing.itemWebUrl !== null ? (
 				<p className="listing-meta">

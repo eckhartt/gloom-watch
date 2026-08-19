@@ -1,14 +1,16 @@
 /**
  * Observed eBay listings — the wire vocabulary and the tunables the scanner starts from.
  *
- * A listing is raw observed data, not a claim about the collection. Resolving one to a card is
- * a later ticket. This module is what both sides share so the feed cannot display a field the
- * server never meant to send — most importantly `seller_hash`, which exists only as a relist
- * key and is never on the wire.
+ * A listing is raw observed data, not a claim about the collection. The matcher attaches a
+ * resolution at read time; this module is what both sides share so the feed cannot display a
+ * field the server never meant to send — most importantly `seller_hash`, which exists only
+ * as a relist key and is never on the wire.
  *
  * **Time.** Stored instants are UTC epoch milliseconds. The six-hour display rule and the
  * ninety-day retention are both measured from `observed_at`, not from eBay's `itemOriginDate`.
  */
+
+import type { ListingResolution } from "./matcher.ts";
 
 /** The four marketplaces v1 scans. Japan is out — it is a cross-border export business. */
 export const MARKETPLACES = ["AU", "US", "GB", "DE"] as const;
@@ -103,6 +105,8 @@ export interface ListingDocument {
 	readonly observedAt: number;
 	/** `now - observedAt`. The age the disclosure is computed from. */
 	readonly ageMs: number;
+	/** What the matcher made of the title. Computed at read time; never an ownership write. */
+	readonly match: ListingResolution;
 }
 
 export interface LocationFacet {

@@ -1,5 +1,6 @@
 /**
- * The listing feed. No matching, no queue, no price-as-current past six hours.
+ * The listing feed. Each row carries the matcher's resolution; no queue, no price-as-current
+ * past six hours.
  *
  * A listing detail route has to resolve on a cold load — it is the notification tap target
  * once that ticket lands, and the service worker may have no warm state. The collection

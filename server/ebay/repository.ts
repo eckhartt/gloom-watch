@@ -10,10 +10,13 @@ import {
 	MARKETPLACES,
 	US_CATEGORY_ID,
 } from "../../shared/listings.ts";
+import type { MatcherCorpus } from "../../shared/matcher.ts";
 import { APP_STATE_KEYS, readAppStateNumber } from "../db/app-state.ts";
 import type { GloomDatabase } from "../db/client.ts";
 import type { ListingRow } from "../db/schema.ts";
 import { listings, scanCursors, seenItems } from "../db/schema.ts";
+import { loadMatcherCorpus } from "../matcher/corpus.ts";
+import { resolveListing } from "../matcher/resolve.ts";
 import { readCallsUsed, utcDay } from "./budget.ts";
 import type { ObservedListing } from "./whitelist.ts";
 
@@ -230,7 +233,11 @@ export function expireListings(db: GloomDatabase, now: number): number {
 	return doomed.length;
 }
 
-export function toListingDocument(row: ListingRow, now: number): ListingDocument {
+export function toListingDocument(
+	row: ListingRow,
+	now: number,
+	corpus: MatcherCorpus,
+): ListingDocument {
 	const ageMs = Math.max(0, now - row.observedAt);
 	const stale = ageMs > DISPLAY_FRESHNESS_MS;
 	return {
@@ -247,7 +254,29 @@ export function toListingDocument(row: ListingRow, now: number): ListingDocument
 		itemOriginDate: row.itemOriginDate,
 		observedAt: row.observedAt,
 		ageMs,
+		match: resolveListing(
+			{
+				title: row.title,
+				itemLocationCountry: row.itemLocationCountry,
+				aspects: parseAspects(row.aspects),
+			},
+			corpus,
+		),
 	};
+}
+
+export function parseAspects(raw: string): Readonly<Record<string, string>> {
+	try {
+		const parsed: unknown = JSON.parse(raw);
+		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+		const aspects: Record<string, string> = {};
+		for (const [key, value] of Object.entries(parsed)) {
+			if (typeof value === "string") aspects[key] = value;
+		}
+		return aspects;
+	} catch {
+		return {};
+	}
 }
 
 export function readLocationFacets(
@@ -306,7 +335,8 @@ export function readRecentListings(
 		)
 		.limit(limit)
 		.all();
-	return rows.map((row) => toListingDocument(row, now));
+	const corpus = loadMatcherCorpus(db);
+	return rows.map((row) => toListingDocument(row, now, corpus));
 }
 
 export function readListing(
@@ -315,7 +345,8 @@ export function readListing(
 	now: number,
 ): ListingDocument | null {
 	const row = db.select().from(listings).where(eq(listings.itemId, itemId)).get();
-	return row === undefined ? null : toListingDocument(row, now);
+	if (row === undefined) return null;
+	return toListingDocument(row, now, loadMatcherCorpus(db));
 }
 
 export function readScanHealth(

@@ -291,6 +291,25 @@ main.binder {
 	font-size: 0.8125rem;
 }
 
+.listing-match {
+	margin: 0.35rem 0 0;
+	font-size: 0.75rem;
+	color: var(--ink-dim);
+	letter-spacing: -0.01em;
+}
+
+.listing-match-variant {
+	color: var(--leaf);
+}
+
+.listing-match-card {
+	color: var(--ink);
+}
+
+.listing-match-none {
+	color: var(--ink-dim);
+}
+
 /*
  * The filter row — a control strip, not a summary.
  *
