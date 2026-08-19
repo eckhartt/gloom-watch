@@ -1,24 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { parseFeedSearch, searchFromFeed, toggleMarketplace } from "../../client/feed-filters.ts";
+import { parseFeedSearch, searchFromFeed, toggleLocation } from "../../client/feed-filters.ts";
 
-describe("feed marketplace filters", () => {
+describe("feed location filters", () => {
+	it("defaults a bare /feed to AU", () => {
+		expect(parseFeedSearch({})).toEqual({ location: ["AU"] });
+	});
+
+	it("treats an explicit empty location as every country", () => {
+		expect(parseFeedSearch({ location: [] })).toEqual({ location: [] });
+	});
+
 	it("is total over junk URL input", () => {
-		expect(parseFeedSearch({ marketplace: "XX" })).toEqual({ marketplace: [] });
-		expect(parseFeedSearch({ marketplace: ["AU", "nope", "US"] }).marketplace).toEqual([
-			"AU",
-			"US",
-		]);
+		expect(parseFeedSearch({ location: "XXX" })).toEqual({ location: [] });
+		expect(parseFeedSearch({ location: ["au", "nope", "JP"] }).location).toEqual(["AU", "JP"]);
 	});
 
-	it("round-trips the URL", () => {
-		const filters = { marketplace: ["AU", "US"] as const };
-		expect(parseFeedSearch({ ...searchFromFeed(filters) })).toEqual(filters);
-		expect(searchFromFeed({ marketplace: [] })).toEqual({ marketplace: [] });
-	});
-
-	it("toggles a marketplace on and off", () => {
-		const on = toggleMarketplace({ marketplace: [] }, "AU");
-		expect(on.marketplace).toEqual(["AU"]);
-		expect(toggleMarketplace(on, "AU").marketplace).toEqual([]);
+	it("toggles a country on and off", () => {
+		const on = toggleLocation({ location: ["AU"] }, "US");
+		expect(on.location).toEqual(["AU", "US"]);
+		expect(toggleLocation(on, "AU").location).toEqual(["US"]);
+		expect(searchFromFeed(on)).toEqual(on);
 	});
 });

@@ -1,10 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import type { ListingDocument } from "../../shared/listings.ts";
-import { MARKETPLACES } from "../../shared/listings.ts";
 import { formatMoney } from "../../shared/money.ts";
 import { fetchHealth, fetchListing, fetchListings } from "../api.ts";
-import { searchFromFeed, toggleMarketplace } from "../feed-filters.ts";
+import { searchFromFeed, toggleLocation } from "../feed-filters.ts";
 
 /**
  * The listing feed. Listings land here from the scanner; nothing is matched yet.
@@ -49,7 +48,8 @@ function ListingCard({ listing, timezone }: { listing: ListingDocument; timezone
 				{listing.priceHidden ? null : <span className="muted"> · {listing.ageDisclosed}</span>}
 			</p>
 			<p className="listing-meta muted">
-				seen {formatSeenAt(listing.observedAt, timezone)} · {listing.marketplace}
+				seen {formatSeenAt(listing.observedAt, timezone)}
+				{listing.itemLocationCountry !== null ? ` · ${listing.itemLocationCountry}` : ""}
 			</p>
 			{listing.itemWebUrl !== null ? (
 				<p className="listing-meta">
@@ -70,8 +70,8 @@ export function FeedScreen() {
 		queryFn: ({ signal }) => fetchHealth(signal),
 	});
 	const feed = useQuery({
-		queryKey: ["listings", filters.marketplace],
-		queryFn: ({ signal }) => fetchListings(signal, filters.marketplace),
+		queryKey: ["listings", filters.location],
+		queryFn: ({ signal }) => fetchListings(signal, { locations: filters.location }),
 		refetchInterval: 60_000,
 	});
 
@@ -90,22 +90,22 @@ export function FeedScreen() {
 			</header>
 
 			<div className="filter-chips" style={{ marginTop: "1rem" }}>
-				{MARKETPLACES.map((marketplace) => {
-					const on =
-						filters.marketplace.length === 0 ? false : filters.marketplace.includes(marketplace);
+				{(feed.data?.locations ?? []).map((facet) => {
+					const on = filters.location.includes(facet.country);
 					return (
 						<button
-							key={marketplace}
+							key={facet.country}
 							type="button"
 							aria-pressed={on}
 							className={on ? "filter-chip filter-chip-on" : "filter-chip"}
 							onClick={() =>
 								void navigate({
-									search: searchFromFeed(toggleMarketplace(filters, marketplace)),
+									search: searchFromFeed(toggleLocation(filters, facet.country)),
 								})
 							}
 						>
-							{marketplace}
+							{facet.country}
+							<span className="muted"> {facet.count}</span>
 						</button>
 					);
 				})}
@@ -117,8 +117,8 @@ export function FeedScreen() {
 			) : null}
 			{feed.data?.listings.length === 0 ? (
 				<p className="muted">
-					{filters.marketplace.length > 0
-						? "Nothing from those marketplaces yet."
+					{filters.location.length > 0
+						? "Nothing in those locations yet."
 						: "Nothing seen yet. The scanner runs every ten minutes once eBay credentials are configured."}
 				</p>
 			) : null}
@@ -147,7 +147,7 @@ export function ListingDetailScreen() {
 			<header>
 				<h1>Listing</h1>
 				<p className="subtitle">
-					<Link to="/feed" search={{ marketplace: [] }}>
+					<Link to="/feed" search={{ location: ["AU"] }}>
 						← the feed
 					</Link>
 				</p>

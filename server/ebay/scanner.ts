@@ -62,7 +62,10 @@ export interface ForwardScanResult {
 }
 
 export function marketplacesDueThisCycle(cycle: number): Marketplace[] {
-	return MARKETPLACES.filter((marketplace) => cycle % MARKETPLACE_EVERY_N[marketplace] === 0);
+	return MARKETPLACES.filter((marketplace) => {
+		const every = MARKETPLACE_EVERY_N[marketplace];
+		return every > 0 && cycle % every === 0;
+	});
 }
 
 export async function runForwardScan(deps: ForwardScanDeps): Promise<ForwardScanResult> {

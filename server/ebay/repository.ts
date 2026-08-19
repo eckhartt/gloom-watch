@@ -1,11 +1,11 @@
 import type { Database } from "bun:sqlite";
-import { asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import type { ListingDocument, Marketplace, ScanHealth } from "../../shared/listings.ts";
 import {
 	DEFAULT_DAILY_CALL_BUDGET,
 	DISPLAY_FRESHNESS_MS,
 	discloseAge,
-	HOME_MARKETPLACE,
+	HOME_LOCATION_COUNTRY,
 	LISTING_RETENTION_MS,
 	MARKETPLACES,
 	US_CATEGORY_ID,
@@ -250,20 +250,57 @@ export function toListingDocument(row: ListingRow, now: number): ListingDocument
 	};
 }
 
+export function readLocationFacets(
+	db: GloomDatabase,
+	marketplaces?: readonly Marketplace[],
+): { readonly country: string; readonly count: number }[] {
+	const wanted =
+		marketplaces !== undefined && marketplaces.length > 0 ? [...marketplaces] : undefined;
+	const rows = db
+		.select({
+			country: listings.itemLocationCountry,
+			count: sql<number>`count(*)`.as("count"),
+		})
+		.from(listings)
+		.where(wanted === undefined ? undefined : inArray(listings.marketplace, wanted))
+		.groupBy(listings.itemLocationCountry)
+		.all();
+	return rows
+		.map((row) => ({
+			country: row.country ?? "??",
+			count: Number(row.count),
+		}))
+		.sort((a, b) => {
+			if (a.country === HOME_LOCATION_COUNTRY) return -1;
+			if (b.country === HOME_LOCATION_COUNTRY) return 1;
+			return b.count - a.count;
+		});
+}
+
 export function readRecentListings(
 	db: GloomDatabase,
 	now: number,
 	limit = FEED_PAGE_SIZE,
 	marketplaces?: readonly Marketplace[],
+	locations?: readonly string[],
 ): ListingDocument[] {
-	const wanted =
+	const wantedMarkets =
 		marketplaces !== undefined && marketplaces.length > 0 ? [...marketplaces] : undefined;
+	const wantedLocations =
+		locations !== undefined && locations.length > 0 ? [...locations] : undefined;
+	const filters = [
+		wantedMarkets === undefined ? undefined : inArray(listings.marketplace, wantedMarkets),
+		wantedLocations === undefined
+			? undefined
+			: inArray(listings.itemLocationCountry, wantedLocations),
+	].filter((clause) => clause !== undefined);
+
 	const rows = db
 		.select()
 		.from(listings)
-		.where(wanted === undefined ? undefined : inArray(listings.marketplace, wanted))
+		.where(filters.length === 0 ? undefined : and(...filters))
 		.orderBy(
-			sql`case when ${listings.marketplace} = ${HOME_MARKETPLACE} then 0 else 1 end`,
+			sql`case when ${listings.itemLocationCountry} = ${HOME_LOCATION_COUNTRY} then 0 else 1 end`,
 			desc(listings.observedAt),
 			asc(listings.itemId),
 		)

@@ -79,7 +79,7 @@ function ScanPanel({
 		<section>
 			<h2>The scanner</h2>
 			<p className="subtitle">
-				<Link to="/feed" search={{ marketplace: [] }}>
+				<Link to="/feed" search={{ location: ["AU"] }}>
 					open the feed
 				</Link>
 			</p>

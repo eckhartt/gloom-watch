@@ -93,18 +93,27 @@ describe("the listings feed", () => {
 		expect(response.status).toBe(404);
 	});
 
-	it("filters the feed by marketplace and lists AU first", async () => {
-		persist("v1|us|0", NOW, "US");
-		persist("v1|au|0", NOW - 1, "AU");
-		persist("v1|gb|0", NOW - 2, "GB");
+	it("filters the feed by item location and lists AU-located first", async () => {
+		const au = whitelistItem(
+			fixtureSummary({ itemId: "v1|in-au|0", itemLocation: { country: "AU" } }),
+			FIXTURE_SALT,
+		);
+		const us = whitelistItem(
+			fixtureSummary({ itemId: "v1|in-us|0", itemLocation: { country: "US" } }),
+			FIXTURE_SALT,
+		);
+		if (au === null || us === null) throw new Error("fixture must whitelist");
+		upsertObserved(temp.handle.db, us, "AU", NOW);
+		upsertObserved(temp.handle.db, au, "AU", NOW - 1);
 
 		const all = (await (await app().request(LISTINGS_PATH)).json()) as ListingsDocument;
-		expect(all.listings.map((row) => row.itemId)).toEqual(["v1|au|0", "v1|us|0", "v1|gb|0"]);
+		expect(all.listings.map((row) => row.itemId)).toEqual(["v1|in-au|0", "v1|in-us|0"]);
+		expect(all.locations[0]).toEqual({ country: "AU", count: 1 });
 
-		const au = (await (
-			await app().request(`${LISTINGS_PATH}?marketplace=AU`)
+		const filtered = (await (
+			await app().request(`${LISTINGS_PATH}?location=AU`)
 		).json()) as ListingsDocument;
-		expect(au.listings.map((row) => row.itemId)).toEqual(["v1|au|0"]);
+		expect(filtered.listings.map((row) => row.itemId)).toEqual(["v1|in-au|0"]);
 	});
 
 	it("puts per-marketplace scan health on the health document", async () => {

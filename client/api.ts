@@ -175,11 +175,11 @@ export function setVariantPriority(request: PriorityRequest): Promise<PriorityDo
 
 export function fetchListings(
 	signal?: AbortSignal,
-	marketplaces?: readonly string[],
+	options: { readonly locations?: readonly string[] } = {},
 ): Promise<ListingsDocument> {
 	const params = new URLSearchParams();
-	for (const marketplace of marketplaces ?? []) {
-		params.append("marketplace", marketplace);
+	for (const location of options.locations ?? []) {
+		params.append("location", location);
 	}
 	const query = params.toString();
 	return getJson<ListingsDocument>(

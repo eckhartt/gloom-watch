@@ -1,15 +1,16 @@
-import { MARKETPLACES, type Marketplace } from "../shared/listings.ts";
+import { HOME_LOCATION_COUNTRY } from "../shared/listings.ts";
 
 /**
- * Feed filter state in the URL. Empty `marketplace` means every market — the chips then
- * show none on. AU is first in `MARKETPLACES` because it is home.
+ * Feed filter state in the URL. Empty `location` means every country. A missing
+ * `location` key defaults to AU — home — so `/feed` is local stock, not every
+ * US seller shipping to eBay AU.
  */
 
 export interface FeedSearch {
-	readonly marketplace: readonly Marketplace[];
+	readonly location: readonly string[];
 }
 
-export const NO_FEED_FILTERS: FeedSearch = { marketplace: [] };
+export const NO_FEED_FILTERS: FeedSearch = { location: [HOME_LOCATION_COUNTRY] };
 
 function asList(value: unknown): string[] {
 	if (value === undefined || value === null || value === "") return [];
@@ -18,21 +19,24 @@ function asList(value: unknown): string[] {
 }
 
 export function parseFeedSearch(search: Record<string, unknown>): FeedSearch {
-	const marketplace = asList(search.marketplace).filter((value): value is Marketplace =>
-		(MARKETPLACES as readonly string[]).includes(value),
-	);
-	return { marketplace };
+	if (!("location" in search)) {
+		return { location: [HOME_LOCATION_COUNTRY] };
+	}
+	const location = asList(search.location)
+		.map((value) => value.trim().toUpperCase())
+		.filter((value) => /^[A-Z]{2}$/.test(value));
+	return { location };
 }
 
 export function searchFromFeed(filters: FeedSearch): FeedSearch {
-	return { marketplace: [...filters.marketplace] };
+	return { location: [...filters.location] };
 }
 
-export function toggleMarketplace(filters: FeedSearch, marketplace: Marketplace): FeedSearch {
-	const has = filters.marketplace.includes(marketplace);
+export function toggleLocation(filters: FeedSearch, country: string): FeedSearch {
+	const has = filters.location.includes(country);
 	return {
-		marketplace: has
-			? filters.marketplace.filter((value) => value !== marketplace)
-			: [...filters.marketplace, marketplace],
+		location: has
+			? filters.location.filter((value) => value !== country)
+			: [...filters.location, country],
 	};
 }

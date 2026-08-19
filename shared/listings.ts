@@ -23,20 +23,21 @@ export const EBAY_MARKETPLACE_IDS: Readonly<Record<Marketplace, string>> = {
 };
 
 /**
- * How often each marketplace is visited, in scan cycles.
+ * How often each marketplace is visited, in scan cycles. `0` means never.
  *
- * AU is home — every cycle. US every cycle too: that is where most Japanese singles
- * surface. GB and DE every fourth. Cursors stay per-marketplace so a skipped cycle
- * does not lose those listings.
+ * Only AU is scanned. eBay AU already returns cross-border stock (US/CA/GB/JP
+ * sellers shipping here). The feed splits *where the item sits* via
+ * `itemLocationCountry`, not which site we queried.
  */
 export const MARKETPLACE_EVERY_N: Readonly<Record<Marketplace, number>> = {
 	AU: 1,
-	US: 1,
-	GB: 4,
-	DE: 4,
+	US: 0,
+	GB: 0,
+	DE: 0,
 };
 
 export const HOME_MARKETPLACE: Marketplace = "AU";
+export const HOME_LOCATION_COUNTRY = "AU";
 
 /** Confirmed leaf ID for US CCG Individual Cards. GB/DE/AU are resolved via Taxonomy. */
 export const US_CATEGORY_ID = "183454";
@@ -104,9 +105,15 @@ export interface ListingDocument {
 	readonly ageMs: number;
 }
 
+export interface LocationFacet {
+	readonly country: string;
+	readonly count: number;
+}
+
 export interface ListingsDocument {
 	readonly generatedAt: number;
 	readonly listings: readonly ListingDocument[];
+	readonly locations: readonly LocationFacet[];
 }
 
 export interface ScanMarketplaceHealth {

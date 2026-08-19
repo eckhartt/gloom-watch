@@ -10,7 +10,12 @@ import { Hono } from "hono";
 import type { ListingDocument, ListingsDocument, Marketplace } from "../../shared/listings.ts";
 import { LISTINGS_PATH, MARKETPLACES } from "../../shared/listings.ts";
 import type { GloomDatabase } from "../db/client.ts";
-import { FEED_PAGE_SIZE, readListing, readRecentListings } from "./repository.ts";
+import {
+	FEED_PAGE_SIZE,
+	readListing,
+	readLocationFacets,
+	readRecentListings,
+} from "./repository.ts";
 
 export interface ListingRouteDeps {
 	readonly db: GloomDatabase;
@@ -24,10 +29,11 @@ export function createListingRoutes(deps: ListingRouteDeps): Hono {
 
 	routes.get(LISTINGS_PATH, (c) => {
 		c.header("Cache-Control", CACHE_CONTROL);
-		const raw = c.req.queries("marketplace") ?? [];
-		const marketplaces = raw.filter((value): value is Marketplace =>
+		const rawMarkets = c.req.queries("marketplace") ?? [];
+		const marketplaces = rawMarkets.filter((value): value is Marketplace =>
 			(MARKETPLACES as readonly string[]).includes(value),
 		);
+		const locations = (c.req.queries("location") ?? []).filter((value) => value !== "");
 		const body: ListingsDocument = {
 			generatedAt: deps.now(),
 			listings: readRecentListings(
@@ -35,7 +41,9 @@ export function createListingRoutes(deps: ListingRouteDeps): Hono {
 				deps.now(),
 				FEED_PAGE_SIZE,
 				marketplaces.length > 0 ? marketplaces : undefined,
+				locations.length > 0 ? locations : undefined,
 			),
+			locations: readLocationFacets(deps.db, marketplaces.length > 0 ? marketplaces : undefined),
 		};
 		return c.json(body);
 	});
