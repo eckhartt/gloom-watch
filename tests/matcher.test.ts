@@ -126,6 +126,12 @@ describe("the matcher", () => {
 		expect(match.variantId).not.toBeNull();
 	});
 
+	it("does not treat the same species in two casings as a lot", () => {
+		const match = resolveTwice("Vileplume 045/151 Collect 151 Pokemon Chinese Near Mint");
+		expect(match.isLot).toBe(false);
+		expect(match.lotNames).toBeNull();
+	});
+
 	it("flags lots by multiple names or lot keywords and never links a variant", () => {
 		const names = resolveTwice("Gloom Oddish Vileplume collection");
 		expect(names.isLot).toBe(true);

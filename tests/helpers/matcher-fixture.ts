@@ -105,6 +105,26 @@ export const MATCHER_CORPUS: MatcherCorpus = {
 			],
 		}),
 		card({
+			cardKey: "id:base1-45",
+			language: "id",
+			cardId: "base1-45",
+			setId: "base1",
+			setName: "Set Dasar",
+			setAbbreviation: "BS",
+			localId: "45",
+			name: "vileplume",
+			variants: [
+				variant({
+					variantId: "id-vileplume",
+					finish: "holo",
+					subtype: null,
+					stamps: [],
+					foil: null,
+					size: "standard",
+				}),
+			],
+		}),
+		card({
 			cardKey: "en:base2-58",
 			language: "en",
 			cardId: "base2-58",

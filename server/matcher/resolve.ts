@@ -409,7 +409,7 @@ function detectLotNames(title: string, corpus: MatcherCorpus): string[] {
 					normalize(other.name).length > normalize(hit.name).length,
 			),
 	);
-	return uniqueSorted(kept.map((hit) => hit.name));
+	return uniqueByNormalizedName(kept.map((hit) => hit.name));
 }
 
 function extractLotKeywordNames(title: string, corpus: MatcherCorpus): string[] {
@@ -621,6 +621,19 @@ function containsPhrase(haystack: string, phrase: string): boolean {
 
 function uniqueSorted(values: readonly string[]): string[] {
 	return [...new Set(values)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
+/** Same species in two casings is one name. Otherwise `Vileplume` + `vileplume` is a lot. */
+function uniqueByNormalizedName(values: readonly string[]): string[] {
+	const byNorm = new Map<string, string>();
+	for (const value of values) {
+		const key = normalize(value);
+		const existing = byNorm.get(key);
+		if (existing === undefined || value.length > existing.length) {
+			byNorm.set(key, value);
+		}
+	}
+	return [...byNorm.values()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 /** Exposed so stamp hyphenation can be asserted against the same slug the ingest uses. */
