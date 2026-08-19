@@ -57,6 +57,13 @@
       "when": 1787140759341,
       "tag": "0007_ebay_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1787140800000,
+      "tag": "0008_copy_photographs",
+      "breakpoints": true
     }
   ]
 }

@@ -246,6 +246,27 @@ export interface PriorityDocument {
 	readonly priority: number | null;
 }
 
+/**
+ * One owner photograph of a copy, as it travels the wire.
+ *
+ * The blob itself is a separate GET — this is the metadata the sheet needs to render a
+ * thumbnail and to delete. `contentType` is always `image/webp`: recompression happens
+ * server-side on receipt, and the original JPEG/HEIC never leaves the request.
+ */
+export interface PhotographDocument {
+	readonly id: string;
+	readonly copyId: string;
+	readonly contentType: string;
+	readonly byteSize: number;
+	readonly width: number;
+	readonly height: number;
+	readonly createdAt: number;
+}
+
+export interface PhotographListDocument {
+	readonly photographs: readonly PhotographDocument[];
+}
+
 /* -------------------------------------------------------------------------- */
 /* Paths                                                                       */
 /* -------------------------------------------------------------------------- */
@@ -281,3 +302,22 @@ export const COMPLETION_PATH = "/api/completion";
 
 /** `PUT /api/priorities` — idempotent by nature, so replaying one is harmless. */
 export const PRIORITIES_PATH = "/api/priorities";
+
+/**
+ * `GET /api/copies/{copyId}/photographs` lists one copy's photographs;
+ * `POST /api/copies/{copyId}/photographs` attaches one (multipart: `id` + `file`).
+ */
+export function copyPhotographsPath(copyId: string): string {
+	return `${copyPath(copyId)}/photographs`;
+}
+
+/**
+ * `GET /api/photographs/{id}` is the stored webp BLOB.
+ * `DELETE /api/photographs/{id}` removes it. Photographs are the record that *can* be deleted;
+ * a copy cannot.
+ */
+export const PHOTOGRAPHS_PATH = "/api/photographs";
+
+export function photographPath(id: string): string {
+	return `${PHOTOGRAPHS_PATH}/${encodeURIComponent(id)}`;
+}

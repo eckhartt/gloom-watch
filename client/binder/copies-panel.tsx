@@ -9,11 +9,11 @@
  *
  * The layout is deliberately plain. The spec records the sheet's layout as **still undecided**,
  * so this is the dense typographic minimum that makes every field reachable — not a design
- * decision dressed up as one. Photographs and current listings are later tickets and there is no
- * placeholder for either.
+ * decision dressed up as one. Current listings are a later ticket and there is no placeholder
+ * for them.
  */
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import type { BinderEntry } from "../../shared/contract.ts";
 import type {
@@ -31,9 +31,15 @@ import {
 	COPY_SOURCE_TYPES,
 	MAX_PRIORITY,
 	PRIORITY_LEVELS,
+	photographPath,
 } from "../../shared/copies.ts";
 import { optimisticCopyDocument } from "../../shared/outbox.ts";
-import { fetchVariantCopies } from "../api.ts";
+import {
+	attachPhotograph,
+	deletePhotograph,
+	fetchCopyPhotographs,
+	fetchVariantCopies,
+} from "../api.ts";
 import {
 	applyOptimisticCopyCreate,
 	applyOptimisticCopyDispose,
@@ -41,8 +47,10 @@ import {
 	applyOptimisticPriority,
 	BINDER_QUERY_KEY,
 	COMPLETION_QUERY_KEY,
+	copyPhotographsQueryKey,
 	invalidateAfter,
 	newCopyId,
+	newPhotographId,
 	variantCopiesQueryKey,
 } from "../collection.ts";
 import { useOutboxSnapshot } from "../outbox-status.tsx";
@@ -352,6 +360,7 @@ function CopyRow({
 						Photo waiting for a connection. It is not queued — photos are too large for the outbox.
 					</span>
 				) : null}
+				<CopyPhotographs copyId={copy.id} />
 			</div>
 			<div className="copy-buttons">
 				<button type="button" className="quiet" onClick={onEdit}>
@@ -369,6 +378,106 @@ function CopyRow({
 				) : null}
 			</div>
 		</li>
+	);
+}
+
+function CopyPhotographs({ copyId }: { copyId: string }) {
+	const queryClient = useQueryClient();
+	const inputId = useId();
+	const photos = useQuery({
+		queryKey: copyPhotographsQueryKey(copyId),
+		queryFn: ({ signal }) => fetchCopyPhotographs(copyId, signal),
+	});
+
+	const attach = useMutation({
+		mutationFn: (file: Blob) => attachPhotograph(copyId, newPhotographId(), file),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: copyPhotographsQueryKey(copyId) });
+		},
+	});
+	const remove = useMutation({
+		mutationFn: deletePhotograph,
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: copyPhotographsQueryKey(copyId) });
+		},
+	});
+
+	const busy = attach.isPending || remove.isPending;
+	const writeError = attach.error ?? remove.error;
+	const held = photos.data ?? [];
+
+	return (
+		<div className="copy-photos">
+			{held.length === 0 ? null : (
+				<ul className="copy-photo-list">
+					{held.map((photo) => (
+						<li key={photo.id}>
+							<img src={photographPath(photo.id)} alt="Owner photograph of this copy" />
+							<button
+								type="button"
+								className="quiet"
+								disabled={busy}
+								onClick={() => remove.mutate(photo.id)}
+							>
+								Delete
+							</button>
+						</li>
+					))}
+				</ul>
+			)}
+			<label className="copy-photo-add" htmlFor={inputId}>
+				Photograph
+				<input
+					id={inputId}
+					type="file"
+					accept="image/*"
+					capture="environment"
+					multiple
+					disabled={busy}
+					onChange={(event) => {
+						const files = Array.from(event.target.files ?? []);
+						event.target.value = "";
+						for (const file of files) {
+							attach.mutate(file);
+						}
+					}}
+				/>
+			</label>
+			{writeError === null ? null : <p className="error">{writeError.message}</p>}
+		</div>
+	);
+}
+
+/**
+ * Owner photographs in the image column of the variant sheet, next to the corpus art.
+ *
+ * Reads the same queries the copy rows do, so attaching or deleting one updates both places
+ * without a second request.
+ */
+export function SheetPhotographs({ entry }: { entry: BinderEntry }) {
+	const copies = useQuery({
+		queryKey: variantCopiesQueryKey(entry.cardKey, entry.variantId),
+		queryFn: ({ signal }) => fetchVariantCopies(entry.cardKey, entry.variantId, signal),
+	});
+	const photoQueries = useQueries({
+		queries: (copies.data ?? []).map((copy) => ({
+			queryKey: copyPhotographsQueryKey(copy.id),
+			queryFn: ({ signal }: { signal: AbortSignal }) => fetchCopyPhotographs(copy.id, signal),
+		})),
+	});
+	const photographs = photoQueries.flatMap((query) => query.data ?? []);
+	if (photographs.length === 0) return null;
+	return (
+		<div className="sheet-photos">
+			{photographs.map((photo) => (
+				<img
+					key={photo.id}
+					className="sheet-photo"
+					src={photographPath(photo.id)}
+					alt="Owner photograph"
+				/>
+			))}
+		</div>
 	);
 }
 

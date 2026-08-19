@@ -28,9 +28,9 @@ import { QUEUE_STATES } from "../../shared/queue.ts";
  * the owner edits, and folding a job heartbeat into that table would confuse configuration with
  * health the moment either grows.
  *
- * Photographs are a later ticket and are not modelled here. Listings live in their own
- * tables further down — a field whitelist, never a raw payload. Aliases and queue state
- * sit at the bottom of this file so a listing expiry cannot take an owner ruling with it.
+ * Photographs attach to copies in `copy_photographs`. Listings live in their own tables
+ * further down — a field whitelist, never a raw payload. Aliases and queue state sit at the
+ * bottom of this file so a listing expiry cannot take an owner ruling with it.
  */
 export const appState = sqliteTable("app_state", {
 	key: text("key").primaryKey(),
@@ -549,6 +549,38 @@ export const variantPriorities = sqliteTable(
 );
 
 export type VariantPriorityRow = typeof variantPriorities.$inferSelect;
+
+/**
+ * The owner's own photographs of one physical copy.
+ *
+ * **Resized and recompressed to webp at ~1600px on the long edge on receipt** — that is what
+ * makes storing them as BLOBs viable, and it is what strips EXIF, including GPS from photos taken
+ * at home. The original never lands on disk; the outbox in a later ticket therefore never parks a
+ * multi-megabyte iPhone photo in IndexedDB.
+ *
+ * **`id` is minted by the client**, as with copies: a create whose response was lost replays into
+ * this row rather than a second photograph. A photograph can be deleted; a copy cannot. The two
+ * are different kinds of record, and this table is the one that has a delete path.
+ */
+export const copyPhotographs = sqliteTable(
+	"copy_photographs",
+	{
+		/** A client-generated UUID. The primary key, so a replayed create yields one row. */
+		id: text("id").primaryKey(),
+		copyId: text("copy_id")
+			.notNull()
+			.references(() => copies.id),
+		imageBytes: blob("image_bytes", { mode: "buffer" }).notNull(),
+		imageByteSize: integer("image_byte_size").notNull(),
+		imageContentType: text("image_content_type").notNull(),
+		width: integer("width").notNull(),
+		height: integer("height").notNull(),
+		createdAt: integer("created_at").notNull(),
+	},
+	(table) => [index("copy_photographs_copy_idx").on(table.copyId)],
+);
+
+export type CopyPhotographRow = typeof copyPhotographs.$inferSelect;
 
 /**
  * One eBay item the scanner has observed, stored as a **field whitelist**.

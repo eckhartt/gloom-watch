@@ -833,17 +833,30 @@ button.binder-add {
 	flex-wrap: wrap;
 }
 
-.sheet-art {
+.sheet-images {
 	width: 42%;
 	max-width: 12rem;
 	min-width: 7rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.sheet-art,
+.sheet-photo {
+	width: 100%;
 	border-radius: 5px;
 	display: block;
 }
 
 .sheet-art-missing {
-	width: 42%;
-	min-width: 7rem;
+	width: 100%;
+}
+
+.sheet-photos {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
 }
 
 .sheet-facts {
@@ -999,4 +1012,44 @@ button.binder-add {
 	letter-spacing: 0.12em;
 	text-transform: uppercase;
 	color: var(--ink-dim);
+}
+
+.copy-photos {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+	margin-top: 0.4rem;
+}
+
+.copy-photo-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+
+.copy-photo-list li {
+	display: flex;
+	align-items: flex-end;
+	gap: 0.4rem;
+}
+
+.copy-photo-list img {
+	width: 5.5rem;
+	border-radius: 4px;
+	display: block;
+}
+
+.copy-photo-add {
+	font-size: 0.75rem;
+	color: var(--leaf);
+}
+
+.copy-photo-add input {
+	display: block;
+	margin-top: 0.2rem;
+	max-width: 100%;
+	font-size: 0.75rem;
 }
