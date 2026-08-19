@@ -625,7 +625,7 @@ export type SeenItemRow = typeof seenItems.$inferSelect;
 /**
  * The forward cursor, **one row per marketplace**.
  *
- * DE and AU run every fourth cycle. A single global cursor would advance on a US-only cycle
+ * GB and DE run every fourth cycle. A single global cursor would advance on an AU/US cycle
  * and the next DE run would miss everything listed in between. `last_scanned_at` is the
  * cursor and advances only on a successful, fully-paged scan for *that* marketplace. A
  * failure increments `consecutive_failures` and leaves it alone.

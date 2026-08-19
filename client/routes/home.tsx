@@ -79,7 +79,9 @@ function ScanPanel({
 		<section>
 			<h2>The scanner</h2>
 			<p className="subtitle">
-				<Link to="/feed">open the feed</Link>
+				<Link to="/feed" search={{ marketplace: [] }}>
+					open the feed
+				</Link>
 			</p>
 			<dl>
 				<Row label="Cycle" value={String(scan.cycle)} />

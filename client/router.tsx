@@ -1,5 +1,6 @@
 import { createRootRoute, createRoute, createRouter, Outlet } from "@tanstack/react-router";
 import { parseBinderSearch } from "./binder/filters.ts";
+import { parseFeedSearch } from "./feed-filters.ts";
 import { BinderScreen } from "./routes/binder.tsx";
 import { FeedScreen, ListingDetailScreen } from "./routes/feed.tsx";
 import { HomeScreen } from "./routes/home.tsx";
@@ -50,6 +51,7 @@ const feedRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/feed",
 	component: FeedScreen,
+	validateSearch: parseFeedSearch,
 });
 
 const listingRoute = createRoute({

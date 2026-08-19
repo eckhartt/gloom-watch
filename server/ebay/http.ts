@@ -7,8 +7,8 @@
  */
 
 import { Hono } from "hono";
-import type { ListingDocument, ListingsDocument } from "../../shared/listings.ts";
-import { LISTINGS_PATH } from "../../shared/listings.ts";
+import type { ListingDocument, ListingsDocument, Marketplace } from "../../shared/listings.ts";
+import { LISTINGS_PATH, MARKETPLACES } from "../../shared/listings.ts";
 import type { GloomDatabase } from "../db/client.ts";
 import { FEED_PAGE_SIZE, readListing, readRecentListings } from "./repository.ts";
 
@@ -24,9 +24,18 @@ export function createListingRoutes(deps: ListingRouteDeps): Hono {
 
 	routes.get(LISTINGS_PATH, (c) => {
 		c.header("Cache-Control", CACHE_CONTROL);
+		const raw = c.req.queries("marketplace") ?? [];
+		const marketplaces = raw.filter((value): value is Marketplace =>
+			(MARKETPLACES as readonly string[]).includes(value),
+		);
 		const body: ListingsDocument = {
 			generatedAt: deps.now(),
-			listings: readRecentListings(deps.db, deps.now(), FEED_PAGE_SIZE),
+			listings: readRecentListings(
+				deps.db,
+				deps.now(),
+				FEED_PAGE_SIZE,
+				marketplaces.length > 0 ? marketplaces : undefined,
+			),
 		};
 		return c.json(body);
 	});

@@ -326,7 +326,7 @@ export function BinderScreen() {
 			<div className="binder-bar">
 				<span className="binder-wordmark">Gloom Watch</span>
 				<span className="binder-links">
-					<Link to="/feed" className="binder-link">
+					<Link to="/feed" search={{ marketplace: [] }} className="binder-link">
 						feed
 					</Link>
 					<Link to="/status" className="binder-link">

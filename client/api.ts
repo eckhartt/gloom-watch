@@ -173,8 +173,19 @@ export function setVariantPriority(request: PriorityRequest): Promise<PriorityDo
 	return sendJson<PriorityDocument>(PRIORITIES_PATH, "PUT", request);
 }
 
-export function fetchListings(signal?: AbortSignal): Promise<ListingsDocument> {
-	return getJson<ListingsDocument>(LISTINGS_PATH, signal);
+export function fetchListings(
+	signal?: AbortSignal,
+	marketplaces?: readonly string[],
+): Promise<ListingsDocument> {
+	const params = new URLSearchParams();
+	for (const marketplace of marketplaces ?? []) {
+		params.append("marketplace", marketplace);
+	}
+	const query = params.toString();
+	return getJson<ListingsDocument>(
+		query === "" ? LISTINGS_PATH : `${LISTINGS_PATH}?${query}`,
+		signal,
+	);
 }
 
 export function fetchListing(itemId: string, signal?: AbortSignal): Promise<ListingDocument> {

@@ -34,10 +34,14 @@ describe("the listings feed", () => {
 		});
 	}
 
-	function persist(itemId: string, observedAt: number): void {
+	function persist(
+		itemId: string,
+		observedAt: number,
+		marketplace: "AU" | "US" | "GB" | "DE" = "US",
+	): void {
 		const observed = whitelistItem(fixtureSummary({ itemId }), FIXTURE_SALT);
 		if (observed === null) throw new Error("fixture must whitelist");
-		upsertObserved(temp.handle.db, observed, "US", observedAt);
+		upsertObserved(temp.handle.db, observed, marketplace, observedAt);
 	}
 
 	it("shows a fresh listing with its price, seen-at and outbound link", async () => {
@@ -89,14 +93,28 @@ describe("the listings feed", () => {
 		expect(response.status).toBe(404);
 	});
 
+	it("filters the feed by marketplace and lists AU first", async () => {
+		persist("v1|us|0", NOW, "US");
+		persist("v1|au|0", NOW - 1, "AU");
+		persist("v1|gb|0", NOW - 2, "GB");
+
+		const all = (await (await app().request(LISTINGS_PATH)).json()) as ListingsDocument;
+		expect(all.listings.map((row) => row.itemId)).toEqual(["v1|au|0", "v1|us|0", "v1|gb|0"]);
+
+		const au = (await (
+			await app().request(`${LISTINGS_PATH}?marketplace=AU`)
+		).json()) as ListingsDocument;
+		expect(au.listings.map((row) => row.itemId)).toEqual(["v1|au|0"]);
+	});
+
 	it("puts per-marketplace scan health on the health document", async () => {
 		const body = (await (await app().request(HEALTH_PATH)).json()) as HealthDocument;
 		expect(body.scan.cycle).toBe(0);
 		expect(body.scan.marketplaces.map((entry) => entry.marketplace)).toEqual([
+			"AU",
 			"US",
 			"GB",
 			"DE",
-			"AU",
 		]);
 	});
 });

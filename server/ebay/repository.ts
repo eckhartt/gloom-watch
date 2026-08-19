@@ -1,10 +1,11 @@
 import type { Database } from "bun:sqlite";
-import { desc, eq, lt } from "drizzle-orm";
+import { asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import type { ListingDocument, Marketplace, ScanHealth } from "../../shared/listings.ts";
 import {
 	DEFAULT_DAILY_CALL_BUDGET,
 	DISPLAY_FRESHNESS_MS,
 	discloseAge,
+	HOME_MARKETPLACE,
 	LISTING_RETENTION_MS,
 	MARKETPLACES,
 	US_CATEGORY_ID,
@@ -23,7 +24,7 @@ import type { ObservedListing } from "./whitelist.ts";
  * for relist dedupe — `toListingDocument` never copies it onto the wire.
  */
 
-export const FEED_PAGE_SIZE = 100;
+export const FEED_PAGE_SIZE = 2000;
 
 export function seedCursors(db: GloomDatabase, now: number): void {
 	for (const marketplace of MARKETPLACES) {
@@ -253,8 +254,21 @@ export function readRecentListings(
 	db: GloomDatabase,
 	now: number,
 	limit = FEED_PAGE_SIZE,
+	marketplaces?: readonly Marketplace[],
 ): ListingDocument[] {
-	const rows = db.select().from(listings).orderBy(desc(listings.observedAt)).limit(limit).all();
+	const wanted =
+		marketplaces !== undefined && marketplaces.length > 0 ? [...marketplaces] : undefined;
+	const rows = db
+		.select()
+		.from(listings)
+		.where(wanted === undefined ? undefined : inArray(listings.marketplace, wanted))
+		.orderBy(
+			sql`case when ${listings.marketplace} = ${HOME_MARKETPLACE} then 0 else 1 end`,
+			desc(listings.observedAt),
+			asc(listings.itemId),
+		)
+		.limit(limit)
+		.all();
 	return rows.map((row) => toListingDocument(row, now));
 }
 

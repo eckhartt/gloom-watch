@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import type { ListingDocument } from "../../shared/listings.ts";
+import { MARKETPLACES } from "../../shared/listings.ts";
 import { formatMoney } from "../../shared/money.ts";
 import { fetchHealth, fetchListing, fetchListings } from "../api.ts";
+import { searchFromFeed, toggleMarketplace } from "../feed-filters.ts";
 
 /**
  * The listing feed. Listings land here from the scanner; nothing is matched yet.
@@ -61,13 +63,15 @@ function ListingCard({ listing, timezone }: { listing: ListingDocument; timezone
 }
 
 export function FeedScreen() {
+	const navigate = useNavigate({ from: "/feed" });
+	const filters = useSearch({ from: "/feed" });
 	const health = useQuery({
 		queryKey: ["health"],
 		queryFn: ({ signal }) => fetchHealth(signal),
 	});
 	const feed = useQuery({
-		queryKey: ["listings"],
-		queryFn: ({ signal }) => fetchListings(signal),
+		queryKey: ["listings", filters.marketplace],
+		queryFn: ({ signal }) => fetchListings(signal, filters.marketplace),
 		refetchInterval: 60_000,
 	});
 
@@ -85,13 +89,37 @@ export function FeedScreen() {
 				</p>
 			</header>
 
+			<div className="filter-chips" style={{ marginTop: "1rem" }}>
+				{MARKETPLACES.map((marketplace) => {
+					const on =
+						filters.marketplace.length === 0 ? false : filters.marketplace.includes(marketplace);
+					return (
+						<button
+							key={marketplace}
+							type="button"
+							aria-pressed={on}
+							className={on ? "filter-chip filter-chip-on" : "filter-chip"}
+							onClick={() =>
+								void navigate({
+									search: searchFromFeed(toggleMarketplace(filters, marketplace)),
+								})
+							}
+						>
+							{marketplace}
+						</button>
+					);
+				})}
+			</div>
+
 			{feed.isPending ? <p className="muted">Reading…</p> : null}
 			{feed.isError ? (
 				<p className="error">The server did not answer: {(feed.error as Error).message}</p>
 			) : null}
 			{feed.data?.listings.length === 0 ? (
 				<p className="muted">
-					Nothing seen yet. The scanner runs every ten minutes once eBay credentials are configured.
+					{filters.marketplace.length > 0
+						? "Nothing from those marketplaces yet."
+						: "Nothing seen yet. The scanner runs every ten minutes once eBay credentials are configured."}
 				</p>
 			) : null}
 			{feed.data?.listings.map((listing) => (
@@ -119,7 +147,9 @@ export function ListingDetailScreen() {
 			<header>
 				<h1>Listing</h1>
 				<p className="subtitle">
-					<Link to="/feed">← the feed</Link>
+					<Link to="/feed" search={{ marketplace: [] }}>
+						← the feed
+					</Link>
 				</p>
 			</header>
 

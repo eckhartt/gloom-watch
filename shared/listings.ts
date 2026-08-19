@@ -11,7 +11,7 @@
  */
 
 /** The four marketplaces v1 scans. Japan is out — it is a cross-border export business. */
-export const MARKETPLACES = ["US", "GB", "DE", "AU"] as const;
+export const MARKETPLACES = ["AU", "US", "GB", "DE"] as const;
 export type Marketplace = (typeof MARKETPLACES)[number];
 
 /** eBay's `X-EBAY-C-MARKETPLACE-ID` header value for each of those. */
@@ -25,16 +25,18 @@ export const EBAY_MARKETPLACE_IDS: Readonly<Record<Marketplace, string>> = {
 /**
  * How often each marketplace is visited, in scan cycles.
  *
- * US and GB every cycle; DE and AU every fourth. A single global cursor would lose most of
- * DE and AU's listings on the cycles they are skipped — that is why cursors are per-marketplace,
- * and why a US-only cycle must not touch the other two.
+ * AU is home — every cycle. US every cycle too: that is where most Japanese singles
+ * surface. GB and DE every fourth. Cursors stay per-marketplace so a skipped cycle
+ * does not lose those listings.
  */
 export const MARKETPLACE_EVERY_N: Readonly<Record<Marketplace, number>> = {
+	AU: 1,
 	US: 1,
-	GB: 1,
+	GB: 4,
 	DE: 4,
-	AU: 4,
 };
+
+export const HOME_MARKETPLACE: Marketplace = "AU";
 
 /** Confirmed leaf ID for US CCG Individual Cards. GB/DE/AU are resolved via Taxonomy. */
 export const US_CATEGORY_ID = "183454";

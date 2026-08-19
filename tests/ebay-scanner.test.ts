@@ -7,6 +7,7 @@ import {
 	everyPersistedText,
 	expireListings,
 	readCursor,
+	rememberCategory,
 	seedCursors,
 	upsertObserved,
 	writeCursorSuccess,
@@ -33,11 +34,11 @@ const credentials = {
 };
 
 describe("which marketplaces run in a cycle", () => {
-	it("visits US and GB every cycle and DE and AU every fourth", () => {
-		expect(marketplacesDueThisCycle(1)).toEqual(["US", "GB"]);
-		expect(marketplacesDueThisCycle(2)).toEqual(["US", "GB"]);
-		expect(marketplacesDueThisCycle(3)).toEqual(["US", "GB"]);
-		expect(marketplacesDueThisCycle(4)).toEqual(["US", "GB", "DE", "AU"]);
+	it("visits AU and US every cycle and GB and DE every fourth", () => {
+		expect(marketplacesDueThisCycle(1)).toEqual(["AU", "US"]);
+		expect(marketplacesDueThisCycle(2)).toEqual(["AU", "US"]);
+		expect(marketplacesDueThisCycle(3)).toEqual(["AU", "US"]);
+		expect(marketplacesDueThisCycle(4)).toEqual(["AU", "US", "GB", "DE"]);
 	});
 });
 
@@ -95,10 +96,10 @@ describe("the forward scanner", () => {
 		expect(seen.map((row) => row.itemId).sort()).toEqual(["v1|a|0", "v1|b|0"]);
 	});
 
-	it("does not advance DE or AU on a US-only cycle", async () => {
+	it("does not advance GB or DE on an AU/US cycle", async () => {
 		seedCursors(temp.handle.db, NOW);
-		writeCursorSuccess(temp.handle.db, "DE", 1_000, NOW, "183455");
-		writeCursorSuccess(temp.handle.db, "AU", 2_000, NOW, "183455");
+		writeCursorSuccess(temp.handle.db, "GB", 1_000, NOW, "183455");
+		writeCursorSuccess(temp.handle.db, "DE", 2_000, NOW, "183455");
 
 		const fake = new FakeEbayFetch();
 		fake.setDefaultSummaries([fixtureSummary({ itemId: "v1|us|0" })]);
@@ -107,26 +108,26 @@ describe("the forward scanner", () => {
 		expect(result.cycle).toBe(1);
 		expect(
 			result.marketplaces.filter((entry) => entry.ran).map((entry) => entry.marketplace),
-		).toEqual(["US", "GB"]);
+		).toEqual(["AU", "US"]);
 
-		expect(readCursor(temp.handle.db, "DE")?.lastScannedAt).toBe(1_000);
-		expect(readCursor(temp.handle.db, "AU")?.lastScannedAt).toBe(2_000);
-		expect(readCursor(temp.handle.db, "US")?.lastScannedAt).toBe(NOW);
+		expect(readCursor(temp.handle.db, "GB")?.lastScannedAt).toBe(1_000);
+		expect(readCursor(temp.handle.db, "DE")?.lastScannedAt).toBe(2_000);
+		expect(readCursor(temp.handle.db, "AU")?.lastScannedAt).toBe(NOW);
 	});
 
 	it("leaves a failed marketplace cursor and increments its failure count", async () => {
 		const fake = new FakeEbayFetch();
 		fake.setDefaultSummaries([fixtureSummary({ itemId: "v1|ok|0" })]);
-		fake.failMarketplaces.add("EBAY_GB");
+		fake.failMarketplaces.add("EBAY_US");
 
 		const result = await scan(fake);
-		const gb = result.marketplaces.find((entry) => entry.marketplace === "GB");
-		expect(gb?.complete).toBe(false);
-		expect(gb?.error).toMatch(/500/);
-		expect(readCursor(temp.handle.db, "GB")?.lastScannedAt).toBeNull();
-		expect(readCursor(temp.handle.db, "GB")?.consecutiveFailures).toBe(1);
-		expect(readCursor(temp.handle.db, "US")?.lastScannedAt).toBe(NOW);
-		expect(readCursor(temp.handle.db, "US")?.consecutiveFailures).toBe(0);
+		const us = result.marketplaces.find((entry) => entry.marketplace === "US");
+		expect(us?.complete).toBe(false);
+		expect(us?.error).toMatch(/500/);
+		expect(readCursor(temp.handle.db, "US")?.lastScannedAt).toBeNull();
+		expect(readCursor(temp.handle.db, "US")?.consecutiveFailures).toBe(1);
+		expect(readCursor(temp.handle.db, "AU")?.lastScannedAt).toBe(NOW);
+		expect(readCursor(temp.handle.db, "AU")?.consecutiveFailures).toBe(0);
 	});
 
 	it("pages through to exhaustion", async () => {
@@ -148,13 +149,15 @@ describe("the forward scanner", () => {
 	});
 
 	it("stops when the daily call budget is spent and does not advance the cursor", async () => {
+		seedCursors(temp.handle.db, NOW);
+		rememberCategory(temp.handle.db, "AU", "183454", NOW);
 		const fake = new FakeEbayFetch();
 		fake.setDefaultSummaries([fixtureSummary({ itemId: "v1|budget|0" })]);
 
 		const result = await scan(fake, NOW, 1);
-		const us = result.marketplaces.find((entry) => entry.marketplace === "US");
-		expect(us?.complete).toBe(false);
-		expect(readCursor(temp.handle.db, "US")?.lastScannedAt).toBeNull();
+		const au = result.marketplaces.find((entry) => entry.marketplace === "AU");
+		expect(au?.complete).toBe(false);
+		expect(readCursor(temp.handle.db, "AU")?.lastScannedAt).toBeNull();
 		expect(fake.requests.filter((request) => request.url.includes("item_summary")).length).toBe(1);
 	});
 
@@ -203,6 +206,6 @@ describe("the forward scanner", () => {
 		expect(result.cycle).toBe(4);
 		expect(
 			result.marketplaces.filter((entry) => entry.ran).map((entry) => entry.marketplace),
-		).toEqual(["US", "GB", "DE", "AU"]);
+		).toEqual(["AU", "US", "GB", "DE"]);
 	});
 });
