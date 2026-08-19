@@ -29,7 +29,7 @@ import {
 	PRIORITIES_PATH,
 	variantCopiesPath,
 } from "../shared/copies.ts";
-import { UNLOCK_API_PATH } from "../shared/gate.ts";
+import { UNLOCK_PATH } from "../shared/gate.ts";
 import type { ListingDocument, ListingsDocument } from "../shared/listings.ts";
 import { LISTINGS_PATH, listingPath } from "../shared/listings.ts";
 
@@ -49,7 +49,7 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
 		...(signal ? { signal } : {}),
 	});
 	if (response.status === 401 && typeof window !== "undefined") {
-		window.location.assign(UNLOCK_API_PATH);
+		window.location.assign(UNLOCK_PATH);
 	}
 	if (!response.ok) {
 		throw new ApiError(response.status, `GET ${path} responded ${response.status}`);
@@ -121,7 +121,7 @@ async function sendJson<T>(path: string, method: string, body: unknown): Promise
 	});
 	const payload: unknown = await response.json().catch(() => null);
 	if (response.status === 401 && typeof window !== "undefined") {
-		window.location.assign(UNLOCK_API_PATH);
+		window.location.assign(UNLOCK_PATH);
 	}
 	if (!response.ok) {
 		const message =

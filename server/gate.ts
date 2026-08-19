@@ -1,7 +1,12 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Context, Next } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { EBAY_ACCOUNT_DELETION_PATH, GATE_COOKIE, UNLOCK_API_PATH } from "../shared/gate.ts";
+import {
+	EBAY_ACCOUNT_DELETION_PATH,
+	GATE_COOKIE,
+	UNLOCK_API_PATH,
+	UNLOCK_PATH,
+} from "../shared/gate.ts";
 
 /**
  * The perimeter now that the origin is public.
@@ -58,7 +63,7 @@ export function gateMiddleware(secret: string | null) {
 		if (presentedSecret(c, secret)) return next();
 
 		c.header("Cache-Control", "no-store");
-		return c.json({ error: "unlock required", unlock: UNLOCK_API_PATH }, 401);
+		return c.json({ error: "unlock required", unlock: UNLOCK_PATH }, 401);
 	};
 }
 

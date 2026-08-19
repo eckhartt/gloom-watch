@@ -45,7 +45,7 @@ describe("the shared-secret gate", () => {
 		const response = await app().request(HEALTH_PATH);
 		expect(response.status).toBe(401);
 		const body = (await response.json()) as { unlock: string };
-		expect(body.unlock).toBe(UNLOCK_API_PATH);
+		expect(body.unlock).toBe(UNLOCK_PATH);
 	});
 
 	it("lets the unlock form and the eBay callback through without a cookie", async () => {
