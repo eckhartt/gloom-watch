@@ -6,14 +6,20 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BinderFilters } from "../../client/binder/filters.ts";
 import {
 	activeFilterCount,
+	DEFAULT_FILTERS,
+	DEFAULT_LANGUAGE,
+	extraFilterCount,
 	FILTER_AXES,
 	filterEntries,
 	filterFacets,
 	filtersFromSearch,
+	isDefaultFilters,
+	matchesCardNumber,
 	matchesFilters,
 	NO_FILTERS,
 	parseBinderSearch,
 	searchFromFilters,
+	setFilterNumber,
 	toggleFilterValue,
 } from "../../client/binder/filters.ts";
 import { binderQueryOptions } from "../../client/collection.ts";
@@ -212,7 +218,9 @@ describe("size is stored, not filtered", () => {
 	});
 
 	it("ignores a URL that names it", () => {
-		expect(parseBinderSearch(defaultParseSearch("?size=standard"))).toEqual({});
+		expect(parseBinderSearch(defaultParseSearch("?size=standard"))).toEqual({
+			language: [DEFAULT_LANGUAGE],
+		});
 	});
 
 	it("does not separate two variants that differ only in size", () => {
@@ -223,10 +231,18 @@ describe("size is stored, not filtered", () => {
 });
 
 describe("the filter state round-trips through the URL", () => {
-	it("puts nothing in the URL when nothing is selected", () => {
-		const { url, back } = throughTheUrl(NO_FILTERS);
+	it("puts nothing in the URL for the default English view, and reads it back as English", () => {
+		const { url, back } = throughTheUrl(DEFAULT_FILTERS);
 		expect(url).toBe("");
-		expect(back).toEqual({});
+		expect(back).toEqual({ language: [DEFAULT_LANGUAGE] });
+		expect(filtersFromSearch(back)).toEqual(DEFAULT_FILTERS);
+		expect(filtersFromSearch({})).toEqual(DEFAULT_FILTERS);
+	});
+
+	it("writes an empty language so turning EN off is not the same as the default", () => {
+		const { url, back } = throughTheUrl(NO_FILTERS);
+		expect(url).not.toBe("");
+		expect(back).toEqual({ language: [] });
 		expect(filtersFromSearch(back)).toEqual(NO_FILTERS);
 	});
 
@@ -280,7 +296,10 @@ describe("the filter state round-trips through the URL", () => {
 	});
 
 	it("reads a bare number, because the query decoder turns one into a number before this sees it", () => {
-		expect(parseBinderSearch(defaultParseSearch("?priority=3"))).toEqual({ priority: ["3"] });
+		expect(parseBinderSearch(defaultParseSearch("?priority=3"))).toEqual({
+			language: [DEFAULT_LANGUAGE],
+			priority: ["3"],
+		});
 	});
 });
 
@@ -320,7 +339,7 @@ describe("a malformed or stale URL falls back rather than throwing", () => {
 		expect(search.priority).toBe(7);
 		expect(
 			filterEntries([entry({ key: "owned", ownedCopies: 1 }), ...SHELF], filtersFromSearch(search)),
-		).toHaveLength(SHELF.length);
+		).toHaveLength(3);
 	});
 
 	it("drops a priority that is not on the 0–3 scale, and keeps a set that merely does not exist", () => {
@@ -328,8 +347,11 @@ describe("a malformed or stale URL falls back rather than throwing", () => {
 		// so it goes. A set id is an open vocabulary — the corpus can gain and lose sets — so a
 		// stale one is kept, matches nothing, and stays visible in the URL as what the owner asked
 		// for rather than silently becoming an unfiltered binder.
-		expect(parseBinderSearch(defaultParseSearch("?priority=7"))).toEqual({});
+		expect(parseBinderSearch(defaultParseSearch("?priority=7"))).toEqual({
+			language: [DEFAULT_LANGUAGE],
+		});
 		expect(parseBinderSearch(defaultParseSearch("?set=gone-in-2019"))).toEqual({
+			language: [DEFAULT_LANGUAGE],
 			set: ["gone-in-2019"],
 		});
 		expect(filterEntries(SHELF, filters({ set: ["gone-in-2019"] }))).toEqual([]);
@@ -339,12 +361,14 @@ describe("a malformed or stale URL falls back rather than throwing", () => {
 		const search = parseBinderSearch(
 			defaultParseSearch(`?state=needed&priority=99&finish=${encodeURIComponent('{"a":1}')}`),
 		);
-		expect(search).toEqual({ state: ["needed"] });
+		expect(search).toEqual({ language: [DEFAULT_LANGUAGE], state: ["needed"] });
 	});
 
 	it("drops parameters that are not filters at all", () => {
 		// A bookmark from a paged prototype, or a tracking parameter pasted in by a share sheet.
-		expect(parseBinderSearch(defaultParseSearch("?page=2&sort=oldest&utm_source=x"))).toEqual({});
+		expect(parseBinderSearch(defaultParseSearch("?page=2&sort=oldest&utm_source=x"))).toEqual({
+			language: [DEFAULT_LANGUAGE],
+		});
 	});
 
 	it("counts only the axes that actually narrow anything", () => {
@@ -489,5 +513,87 @@ describe("the options the sheet offers", () => {
 		// by accident.
 		const option = filterFacets(shelf).language[0];
 		expect(Object.keys(option ?? {}).toSorted()).toEqual(["label", "value"]);
+	});
+});
+
+describe("English is the default language, not every language", () => {
+	it("treats a URL with no language as English", () => {
+		expect(parseBinderSearch(defaultParseSearch(""))).toEqual({ language: ["en"] });
+		expect(parseBinderSearch(defaultParseSearch("?state=needed"))).toEqual({
+			language: ["en"],
+			state: ["needed"],
+		});
+	});
+
+	it("keeps an explicit Japanese selection, and an explicit empty one", () => {
+		expect(parseBinderSearch(defaultParseSearch("?language=ja"))).toEqual({ language: ["ja"] });
+		expect(
+			filtersFromSearch(parseBinderSearch(defaultParseSearch("?language=ja"))).language,
+		).toEqual(["ja"]);
+	});
+
+	it("does not count the default English view as extra, so the bar does not open already filtered", () => {
+		expect(isDefaultFilters(DEFAULT_FILTERS)).toBe(true);
+		expect(extraFilterCount(DEFAULT_FILTERS)).toBe(0);
+		expect(activeFilterCount(DEFAULT_FILTERS)).toBe(1);
+		expect(extraFilterCount(NO_FILTERS)).toBe(1);
+		expect(extraFilterCount(filters({ language: ["en"], state: ["needed"] }))).toBe(1);
+		expect(extraFilterCount(filters({ language: ["ja"] }))).toBe(1);
+	});
+
+	it("filters the default view to English entries", () => {
+		expect(filterEntries(SHELF, DEFAULT_FILTERS).map((e) => e.key)).toEqual([
+			"en holo",
+			"en reverse",
+			"en normal",
+		]);
+	});
+});
+
+describe("collector number", () => {
+	it("matches the printed number exactly, ignoring case", () => {
+		expect(matchesCardNumber("198", "198")).toBe(true);
+		expect(matchesCardNumber("SH3", "sh3")).toBe(true);
+		expect(matchesCardNumber("H31", "31")).toBe(false);
+		expect(matchesCardNumber("TG198", "198")).toBe(false);
+	});
+
+	it("matches the stem before a slash, and leading digits with zeros stripped", () => {
+		expect(matchesCardNumber("198/165", "198")).toBe(true);
+		expect(matchesCardNumber("198a", "198")).toBe(true);
+		expect(matchesCardNumber("002", "2")).toBe(true);
+		expect(matchesCardNumber("002", "002")).toBe(true);
+	});
+
+	it("does not treat a substring as a match", () => {
+		expect(matchesCardNumber("1198", "198")).toBe(false);
+		expect(matchesCardNumber("1981", "198")).toBe(false);
+		expect(matchesCardNumber("44", "4")).toBe(false);
+	});
+
+	it("ANDs with the other axes, so EN + 198 is English 198s", () => {
+		const shelf = [
+			entry({ key: "en-198", language: "en", localId: "198" }),
+			entry({ key: "ja-198", language: "ja", localId: "198" }),
+			entry({ key: "en-44", language: "en", localId: "44" }),
+		];
+		expect(
+			filterEntries(shelf, filters({ language: ["en"], number: "198" })).map((e) => e.key),
+		).toEqual(["en-198"]);
+	});
+
+	it("round-trips through the URL, including a bare number the decoder turns into a number", () => {
+		const selection = setFilterNumber(DEFAULT_FILTERS, "198");
+		expect(filtersFromSearch(throughTheUrl(selection).back)).toEqual(selection);
+		expect(parseBinderSearch(defaultParseSearch("?number=198"))).toEqual({
+			language: [DEFAULT_LANGUAGE],
+			number: "198",
+		});
+	});
+
+	it("counts a typed number as an extra filter, and an empty one as none", () => {
+		expect(extraFilterCount(setFilterNumber(DEFAULT_FILTERS, "198"))).toBe(1);
+		expect(extraFilterCount(setFilterNumber(DEFAULT_FILTERS, "  "))).toBe(0);
+		expect(filterEntries(SHELF, setFilterNumber(NO_FILTERS, ""))).toBe(SHELF);
 	});
 });

@@ -15,7 +15,7 @@
 
 import { useEffect } from "react";
 import type { BinderFilters, FilterAxis, FilterFacets, FilterOption } from "./filters.ts";
-import { activeFilterCount, FILTER_AXES } from "./filters.ts";
+import { extraFilterCount, FILTER_AXES } from "./filters.ts";
 
 const AXIS_TITLES: Readonly<Record<FilterAxis, string>> = {
 	state: "Owned / needed",
@@ -72,7 +72,7 @@ export function FilterSheet({
 		return () => window.removeEventListener("keydown", onKeyDown);
 	}, [onClose]);
 
-	const active = activeFilterCount(filters);
+	const extra = extraFilterCount(filters);
 
 	return (
 		<div className="sheet-layer">
@@ -118,7 +118,7 @@ export function FilterSheet({
 				</div>
 
 				<div className="actions">
-					<button type="button" className="quiet" onClick={onClear} disabled={active === 0}>
+					<button type="button" className="quiet" onClick={onClear} disabled={extra === 0}>
 						Clear all
 					</button>
 				</div>

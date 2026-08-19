@@ -312,6 +312,57 @@ main.binder {
 }
 
 /*
+ * Collector-number field on the bar. 16px so iOS does not zoom the page on focus. Pill
+ * shape matches the chips, so the row still reads as one control strip.
+ */
+.binder-number-filter {
+	flex: none;
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+	min-height: 2.25rem;
+	padding: 0 0.15rem 0 0.55rem;
+	border: 1px solid var(--rule);
+	border-radius: 999px;
+}
+
+.binder-number-filter-label {
+	font-size: 0.6875rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--ink-dim);
+}
+
+.binder-number-filter input {
+	width: 4.5rem;
+	min-height: 2.1rem;
+	margin: 0;
+	padding: 0 0.55rem 0 0;
+	font: inherit;
+	font-size: 1rem;
+	letter-spacing: 0.02em;
+	color: var(--ink);
+	background: transparent;
+	border: 0;
+	outline: none;
+	appearance: none;
+	-webkit-appearance: none;
+}
+
+.binder-number-filter input::-webkit-search-decoration {
+	-webkit-appearance: none;
+}
+
+.binder-number-filter:focus-within,
+.binder-number-filter:has(input:not(:placeholder-shown)) {
+	border-color: var(--leaf);
+}
+
+.binder-number-filter:has(input:not(:placeholder-shown)) .binder-number-filter-label {
+	color: var(--leaf);
+}
+
+/*
  * A chip. Off is a hairline; on is filled leaf — the same two-state treatment as an owned tile,
  * so "selected" reads the same way everywhere in the app.
  */

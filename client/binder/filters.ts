@@ -40,6 +40,9 @@ export const FILTER_AXES = [
 
 export type FilterAxis = (typeof FILTER_AXES)[number];
 
+/** The language the binder opens on. Missing `language` in the URL means this, not every language. */
+export const DEFAULT_LANGUAGE = "en";
+
 /**
  * What is selected on each axis. Total: every axis is present, an unselected one being an empty
  * list, so the predicate never has to ask whether a key exists.
@@ -48,16 +51,27 @@ export type FilterAxis = (typeof FILTER_AXES)[number];
  * `"3"` here, converted at the one comparison site below — one axis shape means one URL codec,
  * one toggle and one predicate rather than eight of each, and the conversion is a `String()` in a
  * place a reader can see.
+ *
+ * `number` is not an axis. It is a single typed collector number, not a multi-select, and it
+ * lives beside the chips rather than inside the sheet.
  */
-export type BinderFilters = Readonly<Record<FilterAxis, readonly string[]>>;
+export type BinderFilters = Readonly<Record<FilterAxis, readonly string[]>> & {
+	readonly number: string;
+};
 
 /**
  * What rides in the URL: the same axes, with the empty ones **omitted**.
  *
  * Omitted rather than empty because TanStack Router's stringifier drops `undefined` and keeps
  * `[]`, so a total shape would put `?state=%5B%5D&priority=%5B%5D&…` on an unfiltered binder.
+ *
+ * `language` is the exception. A missing key is the default (English). An explicit empty list is
+ * every language — the owner turned EN off. Without that distinction, toggling EN off would
+ * rewrite the URL to nothing and English would come straight back.
  */
-export type BinderSearch = { readonly [K in FilterAxis]?: readonly string[] };
+export type BinderSearch = { readonly [K in FilterAxis]?: readonly string[] } & {
+	readonly number?: string;
+};
 
 export const NO_FILTERS: BinderFilters = Object.freeze({
 	state: [],
@@ -68,6 +82,13 @@ export const NO_FILTERS: BinderFilters = Object.freeze({
 	stamps: [],
 	foil: [],
 	set: [],
+	number: "",
+});
+
+/** What `/` means: English, no other axes, no collector number. */
+export const DEFAULT_FILTERS: BinderFilters = Object.freeze({
+	...NO_FILTERS,
+	language: [DEFAULT_LANGUAGE],
 });
 
 /** The two answers `ownedCopies` can give. Same vocabulary the cell treatment uses. */
@@ -124,6 +145,16 @@ function axisValues(raw: unknown, vocabulary: readonly string[] | undefined): re
 	return [...kept].sort();
 }
 
+function readCardNumber(raw: unknown): string {
+	if (typeof raw === "string") return raw.trim();
+	if (typeof raw === "number" && Number.isFinite(raw)) return String(raw);
+	return "";
+}
+
+function isDefaultEnglish(language: readonly string[]): boolean {
+	return language.length === 1 && language[0] === DEFAULT_LANGUAGE;
+}
+
 function normalise(source: Partial<Record<FilterAxis, unknown>>): BinderSearch {
 	const search: { -readonly [K in FilterAxis]?: readonly string[] } = {};
 	for (const axis of FILTER_AXES) {
@@ -144,12 +175,35 @@ function normalise(source: Partial<Record<FilterAxis, unknown>>): BinderSearch {
  * URL up.
  */
 export function parseBinderSearch(raw: Record<string, unknown>): BinderSearch {
-	return normalise(raw);
+	const search: { -readonly [K in keyof BinderSearch]?: BinderSearch[K] } = normalise(raw);
+
+	if (!("language" in raw)) {
+		search.language = [DEFAULT_LANGUAGE];
+	} else {
+		search.language = axisValues(raw.language, CLOSED_VOCABULARIES.language);
+	}
+
+	const number = readCardNumber(raw.number);
+	if (number !== "") search.number = number;
+
+	return search;
 }
 
 /** The URL form of a selection — the same normalisation, so parse ∘ stringify is a fixed point. */
 export function searchFromFilters(filters: BinderFilters): BinderSearch {
-	return normalise(filters);
+	const search: { -readonly [K in keyof BinderSearch]?: BinderSearch[K] } = normalise(filters);
+	const language = axisValues(filters.language, CLOSED_VOCABULARIES.language);
+
+	// Default English is omitted so `/` stays `/`. Every other language selection is written,
+	// including the empty list that means "all languages". `normalise` already copied a
+	// non-empty language, so the default has to be taken back off rather than skipped.
+	if (isDefaultEnglish(language)) delete search.language;
+	else search.language = language;
+
+	const number = filters.number.trim();
+	if (number !== "") search.number = number;
+
+	return search;
 }
 
 /**
@@ -167,22 +221,45 @@ export function searchFromFilters(filters: BinderFilters): BinderSearch {
  * `BinderFilters` whatever route above it did or did not look at the query.
  */
 export function filtersFromSearch(search: Record<string, unknown>): BinderFilters {
-	const clean = normalise(search);
+	const clean = parseBinderSearch(search);
 	return {
 		state: clean.state ?? [],
 		priority: clean.priority ?? [],
-		language: clean.language ?? [],
+		language: clean.language ?? [DEFAULT_LANGUAGE],
 		finish: clean.finish ?? [],
 		subtype: clean.subtype ?? [],
 		stamps: clean.stamps ?? [],
 		foil: clean.foil ?? [],
 		set: clean.set ?? [],
+		number: clean.number ?? "",
 	};
 }
 
 /** How many axes are narrowing the grid. What the bar's `filters · 3` counts. */
 export function activeFilterCount(filters: BinderFilters): number {
-	return FILTER_AXES.filter((axis) => filters[axis].length > 0).length;
+	const axes = FILTER_AXES.filter((axis) => filters[axis].length > 0).length;
+	return axes + (filters.number.trim() === "" ? 0 : 1);
+}
+
+/**
+ * Axes the owner chose on top of the default English view. The bar's count and the clear
+ * button both use this, so `/` does not open already saying `filters · 1`.
+ */
+export function extraFilterCount(filters: BinderFilters): number {
+	let count = 0;
+	if (filters.number.trim() !== "") count += 1;
+	for (const axis of FILTER_AXES) {
+		if (axis === "language") {
+			if (!isDefaultEnglish(filters.language)) count += 1;
+			continue;
+		}
+		if (filters[axis].length > 0) count += 1;
+	}
+	return count;
+}
+
+export function isDefaultFilters(filters: BinderFilters): boolean {
+	return extraFilterCount(filters) === 0 && isDefaultEnglish(filters.language);
 }
 
 export function hasActiveFilters(filters: BinderFilters): boolean {
@@ -209,6 +286,10 @@ export function setFilterAxis(
 	values: readonly string[],
 ): BinderFilters {
 	return { ...filters, [axis]: values };
+}
+
+export function setFilterNumber(filters: BinderFilters, number: string): BinderFilters {
+	return { ...filters, number };
 }
 
 /**
@@ -248,10 +329,43 @@ function carriedValues(entry: BinderEntry, axis: FilterAxis): readonly string[] 
 }
 
 /**
+ * Whether a printed collector number is the one the owner typed.
+ *
+ * Exact on the printed string (so `SH3` and `H31` stay themselves), and also on the stem
+ * before a slash (`198/165`) and on the leading digits with zeros stripped (`002` vs `2`).
+ * A substring is not enough: `198` must not pull in `1198`.
+ */
+export function matchesCardNumber(localId: string, query: string): boolean {
+	const needle = query.trim().toLowerCase();
+	if (needle === "") return true;
+
+	const printed = localId.trim().toLowerCase();
+	if (printed === needle) return true;
+
+	const stem = printed.split("/")[0] ?? printed;
+	if (stem === needle) return true;
+
+	if (!/^\d+$/.test(needle)) return false;
+	const digits = stem.match(/^(\d+)/);
+	if (digits === null) return false;
+	return stripLeadingZeros(digits[1] ?? "") === stripLeadingZeros(needle);
+}
+
+function stripLeadingZeros(value: string): string {
+	const stripped = value.replace(/^0+/, "");
+	return stripped === "" ? "0" : stripped;
+}
+
+/**
  * The predicate. **OR within an axis, AND across axes**, and the shape says so:
  * `every` over the axes is the AND, `some` over the selection is the OR.
+ *
+ * The collector number sits outside the axes and is always AND: typing `198` with EN on
+ * shows English 198s, not every 198 plus every English card.
  */
 export function matchesFilters(entry: BinderEntry, filters: BinderFilters): boolean {
+	if (!matchesCardNumber(entry.localId, filters.number)) return false;
+
 	return FILTER_AXES.every((axis) => {
 		const selected = filters[axis];
 		// An axis with nothing selected narrows nothing. Not "matches everything" by accident —

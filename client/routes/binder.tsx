@@ -8,13 +8,15 @@ import { CopiesPanel } from "../binder/copies-panel.tsx";
 import { FilterSheet } from "../binder/filter-sheet.tsx";
 import type { BinderFilters, FilterAxis } from "../binder/filters.ts";
 import {
-	activeFilterCount,
+	DEFAULT_FILTERS,
+	DEFAULT_LANGUAGE,
+	extraFilterCount,
 	filterEntries,
 	filterFacets,
 	filtersFromSearch,
-	NO_FILTERS,
 	searchFromFilters,
 	setFilterAxis,
+	setFilterNumber,
 	toggleFilterValue,
 } from "../binder/filters.ts";
 import {
@@ -239,15 +241,16 @@ export function BinderScreen() {
 		(axis: FilterAxis, value: string) => applyFilters(toggleFilterValue(filters, axis, value)),
 		[applyFilters, filters],
 	);
-	const onClearFilters = useCallback(() => applyFilters(NO_FILTERS), [applyFilters]);
+	const onClearFilters = useCallback(() => applyFilters(DEFAULT_FILTERS), [applyFilters]);
 
 	const entries = binder.data?.entries ?? NO_ENTRIES;
 	// Memoised on the document and the selection, so a filter that has not changed does not walk
 	// 817 entries because something else re-rendered.
 	const visible = useMemo(() => filterEntries(entries, filters), [entries, filters]);
 	const facets = useMemo(() => filterFacets(entries), [entries]);
-	const activeFilters = activeFilterCount(filters);
+	const extraFilters = extraFilterCount(filters);
 	const neededOnly = filters.state.length === 1 && filters.state[0] === "needed";
+	const englishOn = filters.language.includes(DEFAULT_LANGUAGE);
 
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	const closeFilters = useCallback(() => setFiltersOpen(false), []);
@@ -336,6 +339,29 @@ export function BinderScreen() {
 			</div>
 
 			<div className="binder-filter-bar">
+				<label className="binder-number-filter">
+					<span className="binder-number-filter-label">No.</span>
+					<input
+						type="search"
+						inputMode="search"
+						enterKeyHint="search"
+						autoComplete="off"
+						autoCorrect="off"
+						spellCheck={false}
+						placeholder="198"
+						value={filters.number}
+						onChange={(event) => applyFilters(setFilterNumber(filters, event.target.value))}
+						aria-label="Card number"
+					/>
+				</label>
+				<button
+					type="button"
+					aria-pressed={englishOn}
+					className={englishOn ? "filter-chip filter-chip-on" : "filter-chip"}
+					onClick={() => onToggleFilter("language", DEFAULT_LANGUAGE)}
+				>
+					EN
+				</button>
 				{/* The Gap, one tap from the grid. It is the filter the whole screen exists to make
 				    reachable, and burying it two taps deep inside the sheet would make "what I still
 				    need" feel like a screen again. */}
@@ -355,9 +381,9 @@ export function BinderScreen() {
 					aria-expanded={filtersOpen}
 					onClick={() => setFiltersOpen(true)}
 				>
-					filters{activeFilters > 0 ? ` · ${activeFilters}` : ""}
+					filters{extraFilters > 0 ? ` · ${extraFilters}` : ""}
 				</button>
-				{activeFilters > 0 ? (
+				{extraFilters > 0 ? (
 					<button type="button" className="filter-chip" onClick={onClearFilters}>
 						clear
 					</button>
