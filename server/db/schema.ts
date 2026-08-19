@@ -402,10 +402,10 @@ export type CorpusSyncJobRow = typeof corpusSyncJobs.$inferSelect;
  * rows, because the cert number, the condition, the price paid and the source all describe one
  * card and a count of two would have nowhere to put the second of each.
  *
- * **`id` is minted by the client.** That is what makes the outbox's replay idempotent in the next
- * ticket but one: a create whose response was lost on a dropping tailnet replays into this same
- * row rather than into a second card that does not exist. A server-generated key could not,
- * because the client would have nothing to replay with.
+ * **`id` is minted by the client.** That is what makes the outbox's replay idempotent: a create
+ * whose response was lost on a dropping tailnet replays into this same row rather than into a
+ * second card that does not exist. A server-generated key could not, because the client would
+ * have nothing to replay with.
  *
  * **The identity of the variant is composite**, and it is a real foreign key onto
  * `corpus_variants(card_key, variant_id)` rather than a pair of loose columns. `variant_id` alone

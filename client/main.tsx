@@ -1,7 +1,13 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import {
+	createIDBPersister,
+	installBrowserOutbox,
+	persistDehydrateOptions,
+} from "./outbox-browser.ts";
 import { registerServiceWorker } from "./pwa.ts";
 import { router } from "./router.tsx";
 import "./styles.css";
@@ -13,9 +19,19 @@ const queryClient = new QueryClient({
 			// design's answer to silence.
 			retry: 1,
 			refetchOnWindowFocus: true,
+			// Long enough that a binder painted optimistically while offline is still here after
+			// a reload. The persist plugin is what actually keeps it; this stops gc from racing it.
+			gcTime: 1000 * 60 * 60 * 24,
+		},
+		mutations: {
+			// Default `"online"` would pause the mutationFn the moment the browser fires `offline`,
+			// and never enqueue. `"offlineFirst"` runs it; a failed fetch is what the outbox catches.
+			networkMode: "offlineFirst",
 		},
 	},
 });
+
+installBrowserOutbox(queryClient);
 
 const rootElement = document.getElementById("root");
 if (rootElement === null) {
@@ -24,9 +40,17 @@ if (rootElement === null) {
 
 createRoot(rootElement).render(
 	<StrictMode>
-		<QueryClientProvider client={queryClient}>
+		<PersistQueryClientProvider
+			client={queryClient}
+			persistOptions={{
+				persister: createIDBPersister(),
+				maxAge: 1000 * 60 * 60 * 24,
+				buster: "outbox-v1",
+				dehydrateOptions: persistDehydrateOptions(),
+			}}
+		>
 			<RouterProvider router={router} />
-		</QueryClientProvider>
+		</PersistQueryClientProvider>
 	</StrictMode>,
 );
 

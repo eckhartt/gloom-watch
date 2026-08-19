@@ -27,6 +27,7 @@ import {
 	variantBadge,
 } from "../binder/presentation.ts";
 import { binderQueryOptions } from "../collection.ts";
+import { OutboxPendingNote } from "../outbox-status.tsx";
 
 /**
  * The binder — the app's primary surface, and the screen the whole design is built around.
@@ -337,6 +338,8 @@ export function BinderScreen() {
 					</Link>
 				</span>
 			</div>
+
+			<OutboxPendingNote />
 
 			<div className="binder-filter-bar">
 				<label className="binder-number-filter">

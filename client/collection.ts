@@ -14,7 +14,8 @@
  */
 
 import type { QueryClient } from "@tanstack/react-query";
-import type { BinderDocument } from "../shared/contract.ts";
+import type { BinderDocument, BinderEntry } from "../shared/contract.ts";
+import type { CompletionDocument, CopyDocument } from "../shared/copies.ts";
 import { fetchBinder } from "./api.ts";
 
 /** The whole masterset with its ownership state. Its ETag changes when a copy is recorded. */
@@ -89,10 +90,10 @@ export function invalidateAfter(queryClient: QueryClient, event: CollectionEvent
 /**
  * The identifier for a copy the owner is about to record.
  *
- * **Minted here, on the client, because that is what makes the outbox's replay idempotent** in a
- * later ticket: a create whose response was lost replays into the same row rather than into a
- * second card. The server refuses anything that is not UUID-shaped, so a fallback that produced
- * something else would fail at the boundary rather than quietly.
+ * **Minted here, on the client, because that is what makes the outbox's replay idempotent**: a
+ * create whose response was lost replays into the same row rather than into a second card. The
+ * server refuses anything that is not UUID-shaped, so a fallback that produced something else
+ * would fail at the boundary rather than quietly.
  *
  * `crypto.randomUUID` needs a secure context, which the deployed origin (HTTPS over Tailscale
  * Serve) and `localhost` both are — but plain HTTP to the box's LAN address is not, and that is a
@@ -110,4 +111,150 @@ export function newCopyId(): string {
 
 	const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 	return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Optimistic cache                                                            */
+/* -------------------------------------------------------------------------- */
+
+function patchBinderEntry(
+	doc: BinderDocument,
+	cardKey: string,
+	variantId: string,
+	patch: (entry: BinderEntry) => BinderEntry,
+): BinderDocument {
+	return {
+		...doc,
+		entries: doc.entries.map((entry) =>
+			entry.cardKey === cardKey && entry.variantId === variantId ? patch(entry) : entry,
+		),
+	};
+}
+
+/** The cell flips from needed to owned the moment the owner records the card, tunnel or not. */
+export function applyCopyCreateToBinder(
+	doc: BinderDocument,
+	cardKey: string,
+	variantId: string,
+): BinderDocument {
+	return patchBinderEntry(doc, cardKey, variantId, (entry) => ({
+		...entry,
+		ownedCopies: entry.ownedCopies + 1,
+	}));
+}
+
+export function applyCopyDisposeToBinder(
+	doc: BinderDocument,
+	cardKey: string,
+	variantId: string,
+): BinderDocument {
+	return patchBinderEntry(doc, cardKey, variantId, (entry) => ({
+		...entry,
+		ownedCopies: Math.max(0, entry.ownedCopies - 1),
+	}));
+}
+
+export function applyPriorityToBinder(
+	doc: BinderDocument,
+	cardKey: string,
+	variantId: string,
+	priority: number | null,
+): BinderDocument {
+	return patchBinderEntry(doc, cardKey, variantId, (entry) => ({ ...entry, priority }));
+}
+
+/**
+ * Completion moves with the first owned copy of a variant, not with every copy. A second NM of
+ * the same printing does not raise the numerator.
+ *
+ * A `missing_upstream` variant that was unowned was out of the denominator; owning it brings
+ * it back, per the rule the completion ticket pinned.
+ */
+export function applyCopyCreateToCompletion(
+	completion: CompletionDocument,
+	entry: Pick<BinderEntry, "ownedCopies" | "missingUpstream"> | undefined,
+): CompletionDocument {
+	if (entry === undefined || entry.ownedCopies > 0) return completion;
+	return {
+		owned: completion.owned + 1,
+		total: entry.missingUpstream ? completion.total + 1 : completion.total,
+		missingUpstreamExcluded: entry.missingUpstream
+			? Math.max(0, completion.missingUpstreamExcluded - 1)
+			: completion.missingUpstreamExcluded,
+	};
+}
+
+export function applyCopyDisposeToCompletion(
+	completion: CompletionDocument,
+	entry: Pick<BinderEntry, "ownedCopies" | "missingUpstream"> | undefined,
+): CompletionDocument {
+	if (entry === undefined || entry.ownedCopies !== 1) return completion;
+	return {
+		owned: Math.max(0, completion.owned - 1),
+		total: entry.missingUpstream ? Math.max(0, completion.total - 1) : completion.total,
+		missingUpstreamExcluded: entry.missingUpstream
+			? completion.missingUpstreamExcluded + 1
+			: completion.missingUpstreamExcluded,
+	};
+}
+
+export function applyOptimisticCopyCreate(queryClient: QueryClient, copy: CopyDocument): void {
+	const copiesKey = variantCopiesQueryKey(copy.cardKey, copy.variantId);
+	queryClient.setQueryData<readonly CopyDocument[]>(copiesKey, (held) => [...(held ?? []), copy]);
+
+	const binder = queryClient.getQueryData<BinderDocument>(BINDER_QUERY_KEY);
+	const entry = binder?.entries.find(
+		(item) => item.cardKey === copy.cardKey && item.variantId === copy.variantId,
+	);
+	if (binder !== undefined) {
+		queryClient.setQueryData(
+			BINDER_QUERY_KEY,
+			applyCopyCreateToBinder(binder, copy.cardKey, copy.variantId),
+		);
+	}
+	queryClient.setQueryData<CompletionDocument>(COMPLETION_QUERY_KEY, (current) =>
+		current === undefined ? current : applyCopyCreateToCompletion(current, entry),
+	);
+}
+
+export function applyOptimisticCopyUpdate(queryClient: QueryClient, copy: CopyDocument): void {
+	const copiesKey = variantCopiesQueryKey(copy.cardKey, copy.variantId);
+	queryClient.setQueryData<readonly CopyDocument[]>(copiesKey, (held) =>
+		(held ?? []).map((item) => (item.id === copy.id ? copy : item)),
+	);
+}
+
+export function applyOptimisticCopyDispose(queryClient: QueryClient, copy: CopyDocument): void {
+	const copiesKey = variantCopiesQueryKey(copy.cardKey, copy.variantId);
+	queryClient.setQueryData<readonly CopyDocument[]>(copiesKey, (held) =>
+		(held ?? []).map((item) => (item.id === copy.id ? copy : item)),
+	);
+
+	const binder = queryClient.getQueryData<BinderDocument>(BINDER_QUERY_KEY);
+	const entry = binder?.entries.find(
+		(item) => item.cardKey === copy.cardKey && item.variantId === copy.variantId,
+	);
+	if (binder !== undefined) {
+		queryClient.setQueryData(
+			BINDER_QUERY_KEY,
+			applyCopyDisposeToBinder(binder, copy.cardKey, copy.variantId),
+		);
+	}
+	queryClient.setQueryData<CompletionDocument>(COMPLETION_QUERY_KEY, (current) =>
+		current === undefined ? current : applyCopyDisposeToCompletion(current, entry),
+	);
+}
+
+export function applyOptimisticPriority(
+	queryClient: QueryClient,
+	cardKey: string,
+	variantId: string,
+	priority: number | null,
+): void {
+	const binder = queryClient.getQueryData<BinderDocument>(BINDER_QUERY_KEY);
+	if (binder === undefined) return;
+	queryClient.setQueryData(
+		BINDER_QUERY_KEY,
+		applyPriorityToBinder(binder, cardKey, variantId, priority),
+	);
 }

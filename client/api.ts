@@ -33,6 +33,14 @@ import { UNLOCK_PATH } from "../shared/gate.ts";
 import type { ListingDocument, ListingsDocument } from "../shared/listings.ts";
 import { LISTINGS_PATH, listingPath } from "../shared/listings.ts";
 
+/** `POST /api/listings/{itemId}/confirm` — the matcher ticket owns the body; the outbox owns the path. */
+export function listingConfirmPath(itemId: string): string {
+	return `${listingPath(itemId)}/confirm`;
+}
+
+/** `POST /api/aliases` — client-minted `id`, so a replay teaches the alias once. */
+export const ALIASES_PATH = "/api/aliases";
+
 export class ApiError extends Error {
 	readonly status: number;
 
@@ -190,4 +198,19 @@ export function fetchListings(
 
 export function fetchListing(itemId: string, signal?: AbortSignal): Promise<ListingDocument> {
 	return getJson<ListingDocument>(listingPath(itemId), signal);
+}
+
+/**
+ * Confirm a queued listing. The matcher is a later ticket; the function exists so the outbox
+ * can replay a confirm through the same helper the UI will call, not a second HTTP path.
+ */
+export function confirmListing(itemId: string, body: unknown): Promise<unknown> {
+	return sendJson(listingConfirmPath(itemId), "POST", body);
+}
+
+/** Teach an alias. Same reason as `confirmListing`: one path, client-minted id. */
+export function createAlias(
+	body: { readonly id: string } & Record<string, unknown>,
+): Promise<unknown> {
+	return sendJson(ALIASES_PATH, "POST", body);
 }

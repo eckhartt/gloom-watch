@@ -5,6 +5,7 @@ import type { ScanHealth } from "../../shared/listings.ts";
 import { fetchCompletion, fetchHealth } from "../api.ts";
 import { COMPLETION_QUERY_KEY } from "../collection.ts";
 import { NotificationSection } from "../notifications.tsx";
+import { useOutboxSnapshot } from "../outbox-status.tsx";
 import { serviceWorkerScope } from "../pwa.ts";
 import { CorpusPanel } from "./corpus.tsx";
 import { OfflineImagesPanel } from "./offline-images.tsx";
@@ -112,6 +113,35 @@ function ScanPanel({
 			</dl>
 			<p className="muted">Times in {timezone}.</p>
 		</section>
+	);
+}
+
+function DeviceOutboxRows() {
+	const snapshot = useOutboxSnapshot();
+	return (
+		<>
+			<Row
+				label="Outbox"
+				value={
+					snapshot.writes === 0
+						? "clear"
+						: snapshot.writes === 1
+							? "1 write waiting"
+							: `${snapshot.writes} writes waiting`
+				}
+			/>
+			{snapshot.photos > 0 ? (
+				<Row
+					label="Photos held"
+					value={
+						snapshot.photos === 1
+							? "1 — waiting for a connection"
+							: `${snapshot.photos} — waiting for a connection`
+					}
+				/>
+			) : null}
+			{snapshot.lastError === null ? null : <Row label="Last send" value={snapshot.lastError} />}
+		</>
 	);
 }
 
@@ -226,6 +256,7 @@ export function HomeScreen() {
 			<section>
 				<h2>On this device</h2>
 				<dl>
+					<DeviceOutboxRows />
 					<Row label="Service worker scope" value={scope ?? "not registered"} />
 				</dl>
 			</section>
