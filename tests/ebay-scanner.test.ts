@@ -6,6 +6,7 @@ import { PRODUCTION_API_ROOT } from "../server/ebay/credentials.ts";
 import {
 	everyPersistedText,
 	expireListings,
+	markBackfillComplete,
 	readCursor,
 	rememberCategory,
 	seedCursors,
@@ -56,6 +57,7 @@ describe("the forward scanner", () => {
 	}
 
 	async function scan(fake: FakeEbayFetch, now = NOW, budget?: number) {
+		markBackfillComplete(temp.handle.db, "AU", now);
 		return runForwardScan({
 			db: temp.handle.db,
 			client: client(fake),

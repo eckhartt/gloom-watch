@@ -13,8 +13,8 @@ import {
 import type { MatcherCorpus } from "../../shared/matcher.ts";
 import { APP_STATE_KEYS, readAppStateNumber } from "../db/app-state.ts";
 import type { GloomDatabase } from "../db/client.ts";
-import type { ListingRow } from "../db/schema.ts";
-import { listings, scanCursors, seenItems } from "../db/schema.ts";
+import type { BackfillCursorRow, ListingRow } from "../db/schema.ts";
+import { backfillCursors, listings, scanCursors, seenItems } from "../db/schema.ts";
 import { loadMatcherCorpus } from "../matcher/corpus.ts";
 import { resolveListing } from "../matcher/resolve.ts";
 import { readCallsUsed, utcDay } from "./budget.ts";
@@ -104,6 +104,148 @@ export function writeCursorFailure(
 			set: {
 				consecutiveFailures: failures,
 				...(categoryId !== undefined ? { categoryId } : {}),
+				updatedAt: now,
+			},
+		})
+		.run();
+}
+
+export function persistObservedPage(
+	db: GloomDatabase,
+	items: readonly ObservedListing[],
+	marketplace: Marketplace,
+	now: number,
+): number {
+	let created = 0;
+	for (const item of items) {
+		if (upsertObserved(db, item, marketplace, now).created) created += 1;
+	}
+	return created;
+}
+
+export function readBackfill(
+	db: GloomDatabase,
+	marketplace: Marketplace,
+): BackfillCursorRow | null {
+	return (
+		db.select().from(backfillCursors).where(eq(backfillCursors.marketplace, marketplace)).get() ??
+		null
+	);
+}
+
+export function isBackfillComplete(db: GloomDatabase, marketplace: Marketplace): boolean {
+	return readBackfill(db, marketplace)?.completeAt != null;
+}
+
+/**
+ * Arm a marketplace's forward cursor in tests, or after a sweep that has already
+ * reached the horizon. Production code path is `runBackfill`; this writes the same
+ * marker that gate reads.
+ */
+export function markBackfillComplete(
+	db: GloomDatabase,
+	marketplace: Marketplace,
+	now: number,
+): void {
+	const current = readBackfill(db, marketplace);
+	db.insert(backfillCursors)
+		.values({
+			marketplace,
+			completeAt: now,
+			startedAt: current?.startedAt ?? now,
+			horizonAt: current?.horizonAt ?? now,
+			windowEnd: current?.windowEnd ?? current?.horizonAt ?? now,
+			itemsUpserted: current?.itemsUpserted ?? 0,
+			callsUsed: current?.callsUsed ?? 0,
+			lastProgressAt: now,
+			updatedAt: now,
+		})
+		.onConflictDoUpdate({
+			target: backfillCursors.marketplace,
+			set: {
+				completeAt: now,
+				lastProgressAt: now,
+				updatedAt: now,
+			},
+		})
+		.run();
+}
+
+/**
+ * First call writes the horizon and the resume cursor at `now`. Later calls
+ * return the persisted row so a restart cannot slide the horizon forward.
+ */
+export function beginBackfill(
+	db: GloomDatabase,
+	marketplace: Marketplace,
+	now: number,
+	horizonAt: number,
+): BackfillCursorRow {
+	const existing = readBackfill(db, marketplace);
+	if (existing?.startedAt != null) return existing;
+
+	db.insert(backfillCursors)
+		.values({
+			marketplace,
+			completeAt: null,
+			startedAt: now,
+			horizonAt,
+			windowEnd: now,
+			itemsUpserted: existing?.itemsUpserted ?? 0,
+			callsUsed: existing?.callsUsed ?? 0,
+			lastProgressAt: now,
+			updatedAt: now,
+		})
+		.onConflictDoUpdate({
+			target: backfillCursors.marketplace,
+			set: {
+				startedAt: now,
+				horizonAt,
+				windowEnd: now,
+				lastProgressAt: now,
+				updatedAt: now,
+			},
+		})
+		.run();
+
+	const row = readBackfill(db, marketplace);
+	if (row === null) throw new Error(`backfill cursor missing after begin for ${marketplace}`);
+	return row;
+}
+
+export function writeBackfillProgress(
+	db: GloomDatabase,
+	marketplace: Marketplace,
+	now: number,
+	patch: {
+		readonly windowEnd?: number;
+		readonly itemsDelta?: number;
+		readonly callsDelta?: number;
+	},
+): void {
+	const current = readBackfill(db, marketplace);
+	if (current === null || current.startedAt == null) {
+		throw new Error(`writeBackfillProgress before beginBackfill for ${marketplace}`);
+	}
+	db.insert(backfillCursors)
+		.values({
+			marketplace,
+			completeAt: current.completeAt,
+			startedAt: current.startedAt,
+			horizonAt: current.horizonAt,
+			windowEnd: patch.windowEnd ?? current.windowEnd,
+			itemsUpserted: current.itemsUpserted + (patch.itemsDelta ?? 0),
+			callsUsed: current.callsUsed + (patch.callsDelta ?? 0),
+			lastProgressAt: now,
+			updatedAt: now,
+		})
+		.onConflictDoUpdate({
+			target: backfillCursors.marketplace,
+			set: {
+				...(patch.windowEnd !== undefined ? { windowEnd: patch.windowEnd } : {}),
+				itemsUpserted: current.itemsUpserted + (patch.itemsDelta ?? 0),
+				callsUsed: current.callsUsed + (patch.callsDelta ?? 0),
+				lastProgressAt: now,
 				updatedAt: now,
 			},
 		})
@@ -356,18 +498,26 @@ export function readScanHealth(
 ): ScanHealth {
 	const rows = db.select().from(scanCursors).all();
 	const byMarketplace = new Map(rows.map((row) => [row.marketplace, row]));
+	const backfillRows = db.select().from(backfillCursors).all();
+	const backfillByMarketplace = new Map(backfillRows.map((row) => [row.marketplace, row]));
 	return {
 		cycle: readAppStateNumber(db, APP_STATE_KEYS.scanCycleCount) ?? 0,
 		dailyCallsUsed: readCallsUsed(db, utcDay(now)),
 		dailyCallBudget: budget,
 		marketplaces: MARKETPLACES.map((marketplace) => {
 			const row = byMarketplace.get(marketplace);
+			const backfill = backfillByMarketplace.get(marketplace);
 			return {
 				marketplace,
 				lastScannedAt: row?.lastScannedAt ?? null,
 				lastSuccessAt: row?.lastSuccessAt ?? null,
 				consecutiveFailures: row?.consecutiveFailures ?? 0,
 				categoryId: row?.categoryId ?? null,
+				backfillCompleteAt: backfill?.completeAt ?? null,
+				backfillStartedAt: backfill?.startedAt ?? null,
+				backfillHorizonAt: backfill?.horizonAt ?? null,
+				backfillWindowEnd: backfill?.windowEnd ?? null,
+				backfillItemsUpserted: backfill?.itemsUpserted ?? 0,
 			};
 		}),
 	};

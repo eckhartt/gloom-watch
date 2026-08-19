@@ -12,27 +12,31 @@ import { canSpend, recordCall } from "./budget.ts";
 import { type EbayClient, EbayHttpError, windowNeedsNarrowing } from "./client.ts";
 import {
 	expireListings,
+	isBackfillComplete,
+	persistObservedPage,
 	readCursor,
 	rememberCategory,
 	seedCursors,
-	upsertObserved,
 	writeCursorFailure,
 	writeCursorSuccess,
 } from "./repository.ts";
-import type { ObservedListing } from "./whitelist.ts";
 
 /**
  * One forward-scan cycle.
  *
- * Per marketplace that is due: page the keyword search and its aspect sibling to exhaustion
- * or the remaining daily budget, union on `itemId`, persist the whitelist. The cursor
- * advances only when that marketplace finished. A thrown request increments
- * `consecutive_failures` and leaves the cursor where it was.
+ * Per marketplace that is due **and whose backfill is marked complete**: page the keyword
+ * search and its aspect sibling to exhaustion or the remaining daily budget, union on
+ * `itemId`, persist the whitelist. The cursor advances only when that marketplace finished.
+ * A thrown request increments `consecutive_failures` and leaves the cursor where it was.
  *
- * No matching. Listings land; the feed shows them.
+ * The scanner ticket deliberately omitted the completion gate so a demo could run. Until a
+ * marketplace's backfill has reached its horizon, its forward cursor does not run — otherwise
+ * the scanner is armed against a half-swept market.
+ *
+ * No matching. Listings land; the feed shows them. This path does not notify.
  */
 
-const MIN_SLICE_MS = 60_000;
+export const MIN_SLICE_MS = 60_000;
 
 export interface ForwardScanDeps {
 	readonly db: GloomDatabase;
@@ -52,6 +56,7 @@ export interface MarketplaceScanResult {
 	readonly cursorBefore: number | null;
 	readonly cursorAfter: number | null;
 	readonly consecutiveFailures: number;
+	readonly skipped?: "not-due" | "backfill-incomplete";
 	readonly error?: string;
 }
 
@@ -66,6 +71,11 @@ export function marketplacesDueThisCycle(cycle: number): Marketplace[] {
 		const every = MARKETPLACE_EVERY_N[marketplace];
 		return every > 0 && cycle % every === 0;
 	});
+}
+
+/** Marketplaces the owner has turned on. Backfill honours this, not the cycle cadence. */
+export function enabledMarketplaces(): Marketplace[] {
+	return MARKETPLACES.filter((marketplace) => MARKETPLACE_EVERY_N[marketplace] > 0);
 }
 
 export async function runForwardScan(deps: ForwardScanDeps): Promise<ForwardScanResult> {
@@ -95,6 +105,22 @@ export async function runForwardScan(deps: ForwardScanDeps): Promise<ForwardScan
 				cursorBefore: before?.lastScannedAt ?? null,
 				cursorAfter: before?.lastScannedAt ?? null,
 				consecutiveFailures: before?.consecutiveFailures ?? 0,
+				skipped: "not-due",
+			});
+			continue;
+		}
+
+		if (!isBackfillComplete(deps.db, marketplace)) {
+			marketplaces.push({
+				marketplace,
+				ran: false,
+				complete: false,
+				itemsUpserted: 0,
+				calls: 0,
+				cursorBefore: before?.lastScannedAt ?? null,
+				cursorAfter: before?.lastScannedAt ?? null,
+				consecutiveFailures: before?.consecutiveFailures ?? 0,
+				skipped: "backfill-incomplete",
 			});
 			continue;
 		}
@@ -213,7 +239,7 @@ async function scanOneMarketplace(args: {
 	}
 }
 
-async function scanWindow(args: {
+export interface CollectWindowArgs {
 	readonly db: GloomDatabase;
 	readonly client: EbayClient;
 	readonly marketplace: Marketplace;
@@ -223,20 +249,33 @@ async function scanWindow(args: {
 	readonly to: number;
 	readonly now: number;
 	readonly budget: number;
-}): Promise<{
-	readonly complete: boolean;
-	readonly scannedThrough: number;
+	/** Page even when `total` is at the cap — used only when the window cannot shrink further. */
+	readonly forcePage?: boolean;
+}
+
+export interface CollectWindowResult {
+	readonly status: "complete" | "budget" | "narrow";
 	readonly itemsUpserted: number;
+	readonly itemsSeen: number;
 	readonly calls: number;
-	readonly error?: string;
-}> {
+}
+
+/**
+ * One `itemStartDate` window: keyword search plus aspect sibling, unioned by upsert.
+ *
+ * Returns `narrow` without persisting when the first page's `total` is at the deep-page
+ * cap and the window is still wider than a minute. Caller bisects. The backfill and the
+ * forward scanner share this so a cap hit is the same slice in both directions.
+ */
+export async function collectSearchWindow(args: CollectWindowArgs): Promise<CollectWindowResult> {
 	let calls = 0;
 	let itemsUpserted = 0;
+	let itemsSeen = 0;
 
 	for (const keyword of args.keywords) {
 		for (const kind of ["keyword", "aspect"] as const) {
 			if (!canSpend(args.db, args.now, args.budget)) {
-				return { complete: false, scannedThrough: args.from, itemsUpserted, calls };
+				return { status: "budget", itemsUpserted, itemsSeen, calls };
 			}
 
 			const first = await args.client.search({
@@ -249,25 +288,21 @@ async function scanWindow(args: {
 			calls += first.calls;
 			recordCall(args.db, args.now, first.calls);
 
-			if (windowNeedsNarrowing(first.total) && args.to - args.from > MIN_SLICE_MS) {
-				const mid = args.from + Math.floor((args.to - args.from) / 2);
-				const sliced = await scanWindow({ ...args, to: mid });
-				return {
-					complete: sliced.complete,
-					scannedThrough: sliced.complete ? mid : args.from,
-					itemsUpserted: itemsUpserted + sliced.itemsUpserted,
-					calls: calls + sliced.calls,
-					...(sliced.error === undefined ? {} : { error: sliced.error }),
-				};
+			if (
+				!args.forcePage &&
+				windowNeedsNarrowing(first.total) &&
+				args.to - args.from > MIN_SLICE_MS
+			) {
+				return { status: "narrow", itemsUpserted, itemsSeen, calls };
 			}
 
-			const firstPersist = persistPage(args.db, first.items, args.marketplace, args.now);
-			itemsUpserted += firstPersist;
+			itemsSeen += first.items.length;
+			itemsUpserted += persistObservedPage(args.db, first.items, args.marketplace, args.now);
 
 			let next = first.next;
 			while (next !== null) {
 				if (!canSpend(args.db, args.now, args.budget)) {
-					return { complete: false, scannedThrough: args.from, itemsUpserted, calls };
+					return { status: "budget", itemsUpserted, itemsSeen, calls };
 				}
 				const page = await args.client.search({
 					marketplace: args.marketplace,
@@ -278,24 +313,47 @@ async function scanWindow(args: {
 				});
 				calls += page.calls;
 				recordCall(args.db, args.now, page.calls);
-				itemsUpserted += persistPage(args.db, page.items, args.marketplace, args.now);
+				itemsSeen += page.items.length;
+				itemsUpserted += persistObservedPage(args.db, page.items, args.marketplace, args.now);
 				next = page.next;
 			}
 		}
 	}
 
-	return { complete: true, scannedThrough: args.to, itemsUpserted, calls };
+	return { status: "complete", itemsUpserted, itemsSeen, calls };
 }
 
-function persistPage(
-	db: GloomDatabase,
-	items: readonly ObservedListing[],
-	marketplace: Marketplace,
-	now: number,
-): number {
-	let created = 0;
-	for (const item of items) {
-		if (upsertObserved(db, item, marketplace, now).created) created += 1;
+async function scanWindow(args: CollectWindowArgs): Promise<{
+	readonly complete: boolean;
+	readonly scannedThrough: number;
+	readonly itemsUpserted: number;
+	readonly calls: number;
+	readonly error?: string;
+}> {
+	const result = await collectSearchWindow(args);
+	if (result.status === "narrow") {
+		const mid = args.from + Math.floor((args.to - args.from) / 2);
+		const sliced = await scanWindow({ ...args, to: mid });
+		return {
+			complete: sliced.complete,
+			scannedThrough: sliced.complete ? mid : args.from,
+			itemsUpserted: result.itemsUpserted + sliced.itemsUpserted,
+			calls: result.calls + sliced.calls,
+			...(sliced.error === undefined ? {} : { error: sliced.error }),
+		};
 	}
-	return created;
+	if (result.status === "complete") {
+		return {
+			complete: true,
+			scannedThrough: args.to,
+			itemsUpserted: result.itemsUpserted,
+			calls: result.calls,
+		};
+	}
+	return {
+		complete: false,
+		scannedThrough: args.from,
+		itemsUpserted: result.itemsUpserted,
+		calls: result.calls,
+	};
 }

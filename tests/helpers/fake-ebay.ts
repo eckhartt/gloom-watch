@@ -63,6 +63,7 @@ export class FakeEbayFetch {
 
 	private readonly searchHandlers: SearchHandler[] = [];
 	private defaultSummaries: EbayItemSummary[] = [];
+	private inventory: EbayItemSummary[] = [];
 
 	constructor(options: FakeEbayOptions = {}) {
 		this.accessToken = options.accessToken ?? "fixture-access-token";
@@ -72,6 +73,15 @@ export class FakeEbayFetch {
 	/** Pages returned for any search that no more-specific handler claims. */
 	setDefaultSummaries(summaries: EbayItemSummary[]): void {
 		this.defaultSummaries = summaries;
+	}
+
+	/**
+	 * Active inventory filtered by the request's `itemStartDate` window against
+	 * `itemOriginDate`. Used by the backfill tests so an old listing is visible
+	 * to a backwards sweep and invisible to a forward cursor.
+	 */
+	setInventory(summaries: EbayItemSummary[]): void {
+		this.inventory = summaries;
 	}
 
 	onSearch(match: (url: URL) => boolean, respond: SearchHandler["respond"]): void {
@@ -168,6 +178,15 @@ export class FakeEbayFetch {
 				}
 			}
 
+			if (this.inventory.length > 0) {
+				const range = parseItemStartDateRange(url.toString());
+				const matched =
+					range === null
+						? this.inventory
+						: this.inventory.filter((item) => originInRange(item.itemOriginDate, range));
+				return jsonResponse({ itemSummaries: matched, total: matched.length });
+			}
+
 			return jsonResponse({
 				itemSummaries: this.defaultSummaries,
 				total: this.defaultSummaries.length,
@@ -176,6 +195,33 @@ export class FakeEbayFetch {
 
 		return new Response(`unexpected ${method} ${url.pathname}`, { status: 404 });
 	};
+}
+
+export function parseItemStartDateRange(
+	urlString: string,
+): { readonly from: number; readonly to: number | null } | null {
+	const filter = new URL(urlString).searchParams.get("filter");
+	if (filter === null) return null;
+	const match = /^itemStartDate:\[(.+)\.\.(.*)\]$/.exec(filter);
+	if (match === null) return null;
+	const from = Date.parse(match[1] ?? "");
+	const toRaw = match[2] ?? "";
+	const to = toRaw === "" ? null : Date.parse(toRaw);
+	if (!Number.isFinite(from)) return null;
+	if (to !== null && !Number.isFinite(to)) return null;
+	return { from, to };
+}
+
+function originInRange(
+	originIso: string | undefined,
+	range: { readonly from: number; readonly to: number | null },
+): boolean {
+	if (originIso === undefined) return true;
+	const origin = Date.parse(originIso);
+	if (!Number.isFinite(origin)) return true;
+	if (origin < range.from) return false;
+	if (range.to !== null && origin > range.to) return false;
+	return true;
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
